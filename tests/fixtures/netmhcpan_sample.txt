@@ -1,0 +1,15 @@
+# NetMHCpan version 4.1b
+
+# Input is in PEPTIDE format
+
+HLA-A02:01 : Distance to training data  0.000 (using nearest neighbor HLA-A02:01)
+
+-----------------------------------------------------------------------------------
+ Pos         MHC        Peptide   Core Of Gp Gl Ip Il        Icore        Identity   Score_EL %Rank_EL  Score_BA %Rank_BA  Aff(nM) BindLevel
+-----------------------------------------------------------------------------------
+   1  HLA-A*02:01      SLLMWITQV  SLLMWITQV  0  0  0  0  0    SLLMWITQV         Pep1   0.967100    0.041  0.812300    0.120    23.45 <= SB
+   1  HLA-A*02:01      GILGFVFTL  GILGFVFTL  0  0  0  0  0    GILGFVFTL         Pep2   0.521000    0.880  0.430000    1.500   312.00 <= WB
+   1  HLA-A*02:01      AAAWILKDV  AAAWILKDV  0  0  0  0  0    AAAWILKDV         Pep3   0.012000   12.000  0.090000   25.000 18000.00
+-----------------------------------------------------------------------------------
+
+Protein Pep1. Allele HLA-A*02:01. Number of high binders 1. Number of weak binders 1.

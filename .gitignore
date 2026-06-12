@@ -1,0 +1,79 @@
+# ---------------------------------------------------------------------------
+# GOVERNANCE — DO NOT COMMIT CONTROLLED-ACCESS DATA
+# TRACERx is controlled-access (Data Access Committee). Nothing derived from it
+# may enter git history. Anything that *could* contain peptide sequences, patient
+# identifiers, or fold outputs built from TRACERx stays out of the repo.
+# ---------------------------------------------------------------------------
+data/
+!data/README.md
+!data/.gitkeep
+*.tracerx
+tracerx*/
+
+# Benchmark / application data dumps
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.h5
+*.hdf5
+!tests/**/*.csv          # tiny fixtures used by unit tests are allowed
+
+# Structure outputs (size, not governance — but keep them out)
+*.pdb
+*.cif
+*.mmcif
+*.pae.json
+*_pae.json
+fold_outputs/
+af_outputs/
+boltz_outputs/
+
+# Model weights / checkpoints
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+checkpoints/
+runs/
+wandb/
+lightning_logs/
+
+# NetMHCpan raw outputs (may be derived from controlled peptides)
+netmhcpan_out/
+*.netmhcpan.txt
+*.xls
+
+# ---------------------------------------------------------------------------
+# Standard Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environments
+.venv/
+venv/
+env/
+.conda/
+*.conda
+
+# Secrets / local config
+.env
+.env.*
+secrets.yaml
+config.local.yaml
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

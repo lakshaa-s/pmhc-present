@@ -1,0 +1,42 @@
+# Default configuration for P11. Copy to config.local.yaml for machine-specific paths
+# (config.local.yaml is git-ignored).
+
+project:
+  name: pmhcpresent
+  seed: 42
+
+paths:
+  data_dir: data            # never commit anything under here except README/.gitkeep
+  netmhcpan_bin: /usr/local/bin/netMHCpan   # Beta path; set per-machine
+  ipsae_script: third_party/ipsae/ipsae.py  # Dunbrack 2025 ipSAE tool
+  fold_outputs: data/fold_outputs
+
+peptide:
+  max_len: 15            # class-I peptides 8–11; padded to max_len
+  pad_idx: 0
+
+allele:
+  pseudoseq_len: 34      # NetMHCpan-style 34-residue MHC pseudosequence
+
+nn:
+  embed_dim: 32
+  conv_channels: 64
+  kernel_size: 3
+  hidden_dim: 128
+  dropout: 0.3
+  lr: 0.001
+  batch_size: 256
+  epochs: 50
+
+structure:
+  contact_cutoff_a: 4.0       # heavy-atom distance for peptide–MHC contact
+  interface_cutoff_a: 5.0     # residues within this define the interface for pLDDT
+  # NOTE: AlphaFold does not model water filling groove gaps — shape complementarity
+  # is an approximation; documented in structure/shape.py.
+
+eval:
+  cluster_identity_threshold: 0.8   # cluster-based split to control leakage
+  n_splits: 5
+  # ancestry / allele-frequency stratification
+  freq_bins: [0.0, 0.01, 0.05, 0.2, 1.0]   # rare → common allele bins
+  freq_bin_labels: [very_rare, rare, uncommon, common]

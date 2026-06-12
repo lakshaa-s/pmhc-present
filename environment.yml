@@ -1,0 +1,24 @@
+# Conda environment for Project P11 — HLA-I peptide presentation, equity lens.
+# CPU-capable locally (Mac/MPS); the same env runs on Beta with the GPU build of torch.
+name: pmhcpresent
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.13
+  - pip
+  - numpy
+  - scipy
+  - pandas
+  - scikit-learn
+  - pyyaml
+  - biopython          # PDB/mmCIF parsing (heavier paths); core features stay numpy-only
+  - matplotlib
+  - pytest
+  - ruff
+  - pip:
+      # torch: install the build that matches the machine.
+      #   Mac (MPS):  pip install torch            (default wheel has MPS)
+      #   Beta (CUDA 13 / RTX 4090): follow pytorch.org selector for the CUDA build
+      - torch
+      - freesasa          # solvent-accessible surface area for shape complementarity
