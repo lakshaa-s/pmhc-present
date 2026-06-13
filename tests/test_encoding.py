@@ -1,4 +1,3 @@
-import numpy as np
 from pmhcpresent.io.peptides import encode_sequence, encode_batch, PAD_IDX, UNK_IDX, AA_TO_IDX
 
 

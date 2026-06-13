@@ -42,10 +42,62 @@ def _cmd_struct_features(args) -> int:
 def _cmd_cluster(args) -> int:
     from pmhcpresent.eval.splits import greedy_cluster
 
-    peptides = [l.strip() for l in open(args.path) if l.strip()]
+    peptides = [ln.strip() for ln in open(args.path) if ln.strip()]
     cids = greedy_cluster(peptides, args.threshold)
     print(f"{len(peptides)} peptides → {len(set(cids))} clusters "
           f"at identity ≥ {args.threshold}")
+    return 0
+
+
+def _cmd_train(args) -> int:
+    import numpy as np
+    import pandas as pd
+
+    from pmhcpresent.io.pseudoseq import load_pseudosequences
+    from pmhcpresent.train import PeptideMHCDataset, TrainConfig, train_model, evaluate
+    from pmhcpresent.models.nn import PresentationNet, NetConfig
+    from pmhcpresent.eval.splits import greedy_cluster
+
+    df = pd.read_csv(args.data)
+    pseudo = load_pseudosequences(args.pseudoseq)
+    ds = PeptideMHCDataset.from_frame(
+        df, pseudo,
+        peptide_col=args.peptide_col, allele_col=args.allele_col,
+        label_col=args.label_col, stratum_col=args.stratum_col,
+    )
+
+    # cluster-based holdout so similar peptides don't leak across the split
+    clusters = greedy_cluster(ds.peptides, identity_threshold=args.cluster_threshold)
+    rng = np.random.default_rng(42)
+    uniq = np.unique(clusters)
+    val_clusters = set(rng.choice(uniq, size=max(1, len(uniq) // 5), replace=False))
+    is_val = np.array([c in val_clusters for c in clusters])
+
+    def subset(mask):
+        idx = np.where(mask)[0]
+        alleles = [ds.alleles[i] for i in idx] if ds.alleles else None
+        strata = ds.strata[idx] if ds.strata is not None else None
+        peps = [ds.peptides[i] for i in idx]
+        pseuds = [pseudo.get(a) for a in alleles] if alleles else None
+        return PeptideMHCDataset(
+            peps, pseuds, ds.labels[idx], alleles=alleles, strata=strata
+        )
+
+    train_ds, val_ds = subset(~is_val), subset(is_val)
+    print(f"train={len(train_ds)}  val={len(val_ds)}")
+
+    model = PresentationNet(NetConfig())
+    cfg = TrainConfig(epochs=args.epochs, batch_size=args.batch_size)
+    model, _ = train_model(model, train_ds, val_ds, cfg)
+
+    res = evaluate(model, val_ds, cfg)
+    print("overall:", res["overall"])
+    if "equity" in res:
+        print("equity gap:", res["equity"]["gap"])
+    if args.save:
+        import torch
+        torch.save(model.state_dict(), args.save)
+        print(f"saved weights → {args.save}")
     return 0
 
 
@@ -70,6 +122,19 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("path", help="text file, one peptide per line")
     c.add_argument("--threshold", type=float, default=0.8)
     c.set_defaults(func=_cmd_cluster)
+
+    t = sub.add_parser("train", help="Train the sequence presentation model")
+    t.add_argument("--data", required=True, help="CSV with peptide/allele/label columns")
+    t.add_argument("--pseudoseq", required=True, help="allele→pseudosequence file")
+    t.add_argument("--peptide-col", default="peptide")
+    t.add_argument("--allele-col", default="allele")
+    t.add_argument("--label-col", default="label")
+    t.add_argument("--stratum-col", default=None, help="column for equity stratification")
+    t.add_argument("--cluster-threshold", type=float, default=0.8)
+    t.add_argument("--epochs", type=int, default=50)
+    t.add_argument("--batch-size", type=int, default=256)
+    t.add_argument("--save", help="path to save trained weights (.pt)")
+    t.set_defaults(func=_cmd_train)
 
     return p
 

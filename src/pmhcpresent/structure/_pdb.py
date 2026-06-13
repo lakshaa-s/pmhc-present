@@ -48,7 +48,9 @@ def parse_pdb(path: str | Path) -> list[Residue]:
         resname = line[17:20].strip()
         chain = line[21].strip() or "A"
         resseq = int(line[22:26])
-        x = float(line[30:38]); y = float(line[38:46]); z = float(line[46:54])
+        x = float(line[30:38])
+        y = float(line[38:46])
+        z = float(line[46:54])
         bfac = float(line[60:66]) if line[60:66].strip() else 0.0
 
         key = (chain, resseq)
