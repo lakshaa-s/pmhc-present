@@ -1,15 +1,15 @@
-# pmhcpresent — Cancer-antigen discovery (HLA-I presentation, equity lens)
+# pmhcpresent - Cancer-antigen discovery (HLA-I presentation, equity lens)
 
 COMP0190 / AI4BH 2025–26. Predicts which tumour-derived peptides are presented by
 HLA class I, and asks whether predictions hold up equitably across ancestrally
 diverse populations.
 
 ## Research questions
-- **RQ1** — Do AlphaFold-derived 3D structure models beat sequence models for
+- **RQ1** - Do AlphaFold-derived 3D structure models beat sequence models for
   underrepresented HLA alleles?
-- **RQ2** — Do sequence and structure models combine synergistically in an ensemble?
-- **RQ3** — Does in-silico saturation mutagenesis show the two model types learned
-  the same binding biology?
+- **RQ2** - Do sequence and structure models combine synergistically in an ensemble?
+- **RQ3** - Does in-silico saturation mutagenesis show the two model types learned
+  the same binding biology? (Novel Extension)
 
 ## Pipeline
 NetMHCpan-4.1 (sequence baseline) → custom PyTorch NN → AlphaFold 3D features → ensemble.
