@@ -6,6 +6,7 @@ Fill in the data-loading specifics once the benchmark/application splits are fix
     pmhcpresent parse-netmhcpan out.txt --to predictions.csv
     pmhcpresent struct-features model.pdb --peptide-chain B --mhc-chain A
     pmhcpresent cluster peptides.txt --threshold 0.8
+    pmhcpresent train --data labelled.csv --pseudoseq hla_a.json hla_b.json hla_c.json
 """
 from __future__ import annotations
 
@@ -53,17 +54,26 @@ def _cmd_train(args) -> int:
     import numpy as np
     import pandas as pd
 
-    from pmhcpresent.io.pseudoseq import load_pseudosequences
+    from pmhcpresent.io.pseudoseq import load_pseudosequences_json
     from pmhcpresent.train import PeptideMHCDataset, TrainConfig, train_model, evaluate
     from pmhcpresent.models.nn import PresentationNet, NetConfig
     from pmhcpresent.eval.splits import greedy_cluster
+    from pmhcpresent.eval.stratified import assign_frequency_bins
 
     df = pd.read_csv(args.data)
-    pseudo = load_pseudosequences(args.pseudoseq)
+    pseudo = load_pseudosequences_json(args.pseudoseq)  # one or more JSON paths
+
+    # Derive equity strata from per-allele peptide count (training-data
+    # representation, the RQ1 axis). Count positives per allele, map each row's
+    # allele to that count, then bin into rare/low/medium/high.
+    pos_counts = df[df[args.label_col] == 1].groupby(args.allele_col).size()
+    row_counts = df[args.allele_col].map(pos_counts).fillna(0).to_numpy()
+    df["_stratum"] = assign_frequency_bins(row_counts, args.count_bins, args.count_labels)
+
     ds = PeptideMHCDataset.from_frame(
         df, pseudo,
         peptide_col=args.peptide_col, allele_col=args.allele_col,
-        label_col=args.label_col, stratum_col=args.stratum_col,
+        label_col=args.label_col, stratum_col="_stratum",
     )
 
     # cluster-based holdout so similar peptides don't leak across the split
@@ -125,11 +135,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     t = sub.add_parser("train", help="Train the sequence presentation model")
     t.add_argument("--data", required=True, help="CSV with peptide/allele/label columns")
-    t.add_argument("--pseudoseq", required=True, help="allele→pseudosequence file")
+    t.add_argument("--pseudoseq", required=True, nargs="+",
+                   help="allele→pseudosequence JSON file(s), e.g. hla_a/b/c.json")
     t.add_argument("--peptide-col", default="peptide")
     t.add_argument("--allele-col", default="allele")
     t.add_argument("--label-col", default="label")
-    t.add_argument("--stratum-col", default=None, help="column for equity stratification")
+    t.add_argument("--count-bins", type=float, nargs="+",
+                   default=[0, 1000, 2500, 6500, 100000],
+                   help="peptide-count bin edges for equity stratification")
+    t.add_argument("--count-labels", nargs="+",
+                   default=["rare", "low", "medium", "high"],
+                   help="labels for the count bins (len == len(count-bins) - 1)")
     t.add_argument("--cluster-threshold", type=float, default=0.8)
     t.add_argument("--epochs", type=int, default=50)
     t.add_argument("--batch-size", type=int, default=256)

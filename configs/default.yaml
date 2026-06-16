@@ -38,5 +38,8 @@ eval:
   cluster_identity_threshold: 0.8   # cluster-based split to control leakage
   n_splits: 5
   # ancestry / allele-frequency stratification
-  freq_bins: [0.0, 0.01, 0.05, 0.2, 1.0]   # rare → common allele bins
-  freq_bin_labels: [very_rare, rare, uncommon, common]
+# Stratify by peptide count per allele (training-data representation, the RQ1 axis)
+  count_bins:  [0, 1000, 2500, 6500, 100000]
+  count_labels: ["rare", "low", "medium", "high"]
+  # (legacy) population-frequency bins, kept for the secondary equity lens
+  freq_bins: [0.0, 0.01, 0.05, 0.2, 1.0]
