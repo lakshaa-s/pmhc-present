@@ -6,12 +6,19 @@ here — it ships with NetMHCpan-4.1 as a two-column file (allele <whitespace>
 pseudosequence), typically ``MHC_pseudo.dat`` / ``pseudosequence.dat`` in the data
 directory of the install. Point ``load_pseudosequences`` at that file.
 
+Alternatively, ``load_pseudosequences_json`` reads the MHC Motif Atlas JSON files
+(one per locus), where each allele entry carries its 34-residue pocket
+pseudosequence at ``entry["pocket_pseudosequence"]`` and its canonical name at
+``entry["canonical_allele"]["protein_allele_name"]``.
+
 Allele naming is a common footgun: NetMHCpan output uses ``HLA-A*02:01`` while many
 peptide tables use ``HLA-A02:01`` or ``A0201``. ``normalize_allele`` collapses these
 to one canonical key so lookups don't silently miss.
 """
+
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -74,4 +81,27 @@ def load_pseudosequences(path: str | Path) -> PseudoSequenceMap:
             mapping[parts[0]] = parts[1]
     if not mapping:
         raise ValueError(f"No allele/pseudosequence pairs parsed from {path}")
+    return PseudoSequenceMap(mapping)
+
+
+def load_pseudosequences_json(paths: list[str | Path]) -> PseudoSequenceMap:
+    """Load pseudosequences from MHC Motif Atlas JSON files (one per locus).
+
+    Each file maps an allele key to an entry dict; the 34-residue pocket
+    pseudosequence is at ``entry["pocket_pseudosequence"]``, and the canonical
+    ``HLA-A*02:01``-style name is at
+    ``entry["canonical_allele"]["protein_allele_name"]`` (falling back to the
+    raw key if that field is absent).
+    """
+    mapping: dict[str, str] = {}
+    for path in paths:
+        data = json.loads(Path(path).read_text())
+        for key, entry in data.items():
+            pseudoseq = entry.get("pocket_pseudosequence")
+            if not pseudoseq:
+                continue
+            name = (entry.get("canonical_allele") or {}).get("protein_allele_name") or key
+            mapping[name] = pseudoseq
+    if not mapping:
+        raise ValueError(f"No pseudosequences parsed from {paths}")
     return PseudoSequenceMap(mapping)
