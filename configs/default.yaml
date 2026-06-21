@@ -39,7 +39,7 @@ eval:
   n_splits: 5
   # ancestry / allele-frequency stratification
 # Stratify by peptide count per allele (training-data representation, the RQ1 axis)
-  count_bins:  [0, 1000, 2500, 6500, 100000]
-  count_labels: ["rare", "low", "medium", "high"]
+  count_bins:  [0, 1000, 2500, 6500, 12000, 100000]
+  count_labels: ["rare", "low", "medium", "high", "very_high"]
   # (legacy) population-frequency bins, kept for the secondary equity lens
   freq_bins: [0.0, 0.01, 0.05, 0.2, 1.0]

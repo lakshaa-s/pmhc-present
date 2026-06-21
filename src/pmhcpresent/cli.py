@@ -41,7 +41,7 @@ def _cmd_struct_features(args) -> int:
 
 
 def _cmd_cluster(args) -> int:
-    from pmhcpresent.eval.splits import greedy_cluster
+    from pmhcpresent.eval.splits import exact_dedup_cluster 
 
     peptides = [ln.strip() for ln in open(args.path) if ln.strip()]
     cids = greedy_cluster(peptides, args.threshold)
@@ -57,7 +57,7 @@ def _cmd_train(args) -> int:
     from pmhcpresent.io.pseudoseq import load_pseudosequences_json
     from pmhcpresent.train import PeptideMHCDataset, TrainConfig, train_model, evaluate
     from pmhcpresent.models.nn import PresentationNet, NetConfig
-    from pmhcpresent.eval.splits import greedy_cluster
+    from pmhcpresent.eval.splits import exact_dedup_cluster
     from pmhcpresent.eval.stratified import assign_frequency_bins
 
     df = pd.read_csv(args.data)
@@ -77,7 +77,7 @@ def _cmd_train(args) -> int:
     )
 
     # cluster-based holdout so similar peptides don't leak across the split
-    clusters = greedy_cluster(ds.peptides, identity_threshold=args.cluster_threshold)
+    clusters = exact_dedup_cluster(ds.peptides, ds.alleles)
     rng = np.random.default_rng(42)
     uniq = np.unique(clusters)
     val_clusters = set(rng.choice(uniq, size=max(1, len(uniq) // 5), replace=False))
@@ -141,10 +141,10 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--allele-col", default="allele")
     t.add_argument("--label-col", default="label")
     t.add_argument("--count-bins", type=float, nargs="+",
-                   default=[0, 1000, 2500, 6500, 100000],
+                   default=[0, 1000, 2500, 6500, 12000, 100000],
                    help="peptide-count bin edges for equity stratification")
     t.add_argument("--count-labels", nargs="+",
-                   default=["rare", "low", "medium", "high"],
+                   default=["rare", "low", "medium", "high", "very_high"],
                    help="labels for the count bins (len == len(count-bins) - 1)")
     t.add_argument("--cluster-threshold", type=float, default=0.8)
     t.add_argument("--epochs", type=int, default=50)

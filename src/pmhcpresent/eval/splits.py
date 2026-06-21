@@ -60,3 +60,34 @@ def grouped_kfold(cluster_ids: np.ndarray, n_splits: int = 5, seed: int = 42):
     dummy_X = np.zeros((n, 1))
     dummy_y = np.zeros(n)
     yield from gkf.split(dummy_X, dummy_y, groups=cluster_ids)
+
+def exact_dedup_cluster(peptides, alleles=None):
+    """Fast leakage-control split helper: identical peptides share a cluster id.
+
+    A pragmatic stand-in for full identity clustering. It guarantees that exact
+    duplicate peptides never straddle a train/test split (the most severe leakage),
+    and runs in O(n) via hashing rather than O(n^2) pairwise comparison. It does
+    NOT catch near-duplicates (peptides differing by a residue or two) -- swap in
+    MMseqs2/CD-HIT clustering for that. If `alleles` is given, identity is keyed on
+    (allele, peptide) so the same peptide under different alleles is treated as
+    distinct prediction problems.
+    """
+    peptides = list(peptides)
+    if alleles is not None:
+        alleles = list(alleles)
+        if len(alleles) != len(peptides):
+            raise ValueError("peptides and alleles must be the same length")
+        keys = list(zip(alleles, peptides))
+    else:
+        keys = peptides
+    id_of = {}
+    cluster_ids = np.empty(len(keys), dtype=int)
+    nxt = 0
+    for i, k in enumerate(keys):
+        cid = id_of.get(k)
+        if cid is None:
+            cid = nxt
+            id_of[k] = cid
+            nxt += 1
+        cluster_ids[i] = cid
+    return cluster_ids
