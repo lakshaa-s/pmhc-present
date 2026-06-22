@@ -41,7 +41,7 @@ def _cmd_struct_features(args) -> int:
 
 
 def _cmd_cluster(args) -> int:
-    from pmhcpresent.eval.splits import exact_dedup_cluster 
+    from pmhcpresent.eval.splits import greedy_cluster
 
     peptides = [ln.strip() for ln in open(args.path) if ln.strip()]
     cids = greedy_cluster(peptides, args.threshold)
