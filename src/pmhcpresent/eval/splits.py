@@ -9,10 +9,6 @@ peptides plus a grouped split over precomputed cluster ids.
 from __future__ import annotations
 
 import numpy as np
-import os
-import subprocess
-import tempfile
-
 
 def hamming_identity(a: str, b: str) -> float:
     """Fractional identity for equal-length peptides (1.0 = identical)."""
@@ -94,40 +90,6 @@ def exact_dedup_cluster(peptides, alleles=None):
             nxt += 1
         cluster_ids[i] = cid
     return cluster_ids
-
-def mmseqs_cluster(peptides, alleles=None, identity_threshold=0.8,
-                   mmseqs_bin="mmseqs", per_allele=True):
-    """Cluster peptides with MMseqs2 (near-duplicate-aware), globally-unique ids.
- 
-    Near-duplicate-aware alternative to exact_dedup_cluster: catches peptides that
-    differ by a residue or two, which exact dedup misses. Uses short-sequence
-    parameters. With alleles + per_allele, clusters within each allele and offsets
-    ids so none collide across alleles.
-    """
-    peptides = list(peptides)
-    if alleles is None or not per_allele:
-        return _mmseqs_one(peptides, identity_threshold, mmseqs_bin)
- 
-    alleles = list(alleles)
-    if len(alleles) != len(peptides):
-        raise ValueError("peptides and alleles must be the same length")
-    cluster_ids = np.full(len(peptides), -1, dtype=int)
-    by_allele = {}
-    for i, a in enumerate(alleles):
-        by_allele.setdefault(a, []).append(i)
-    offset = 0
-    for allele, idxs in by_allele.items():
-        sub = [peptides[i] for i in idxs]
-        sub_ids = _mmseqs_one(sub, identity_threshold, mmseqs_bin)
-        for j, i in enumerate(idxs):
-            cluster_ids[i] = int(sub_ids[j]) + offset
-        offset += int(sub_ids.max()) + 1 if len(sub_ids) else 0
-    return cluster_ids
- 
- 
-# --- add these functions at the END of splits.py (numpy already imported) ---
-
-
 def _hamming_le_threshold(a, b, max_diffs):
     """True if equal-length a, b differ in <= max_diffs positions."""
     diffs = 0
@@ -137,7 +99,6 @@ def _hamming_le_threshold(a, b, max_diffs):
             if diffs > max_diffs:
                 return False
     return True
-
 
 def _cluster_unique_peptides(uniq_peps, identity_threshold):
     """Greedy single-linkage on UNIQUE peptides, bucketed by length.
