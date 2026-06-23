@@ -9,6 +9,9 @@ peptides plus a grouped split over precomputed cluster ids.
 from __future__ import annotations
 
 import numpy as np
+import os
+import subprocess
+import tempfile
 
 
 def hamming_identity(a: str, b: str) -> float:
@@ -90,4 +93,113 @@ def exact_dedup_cluster(peptides, alleles=None):
             id_of[k] = cid
             nxt += 1
         cluster_ids[i] = cid
+    return cluster_ids
+
+def mmseqs_cluster(peptides, alleles=None, identity_threshold=0.8,
+                   mmseqs_bin="mmseqs", per_allele=True):
+    """Cluster peptides with MMseqs2 (near-duplicate-aware), globally-unique ids.
+ 
+    Near-duplicate-aware alternative to exact_dedup_cluster: catches peptides that
+    differ by a residue or two, which exact dedup misses. Uses short-sequence
+    parameters. With alleles + per_allele, clusters within each allele and offsets
+    ids so none collide across alleles.
+    """
+    peptides = list(peptides)
+    if alleles is None or not per_allele:
+        return _mmseqs_one(peptides, identity_threshold, mmseqs_bin)
+ 
+    alleles = list(alleles)
+    if len(alleles) != len(peptides):
+        raise ValueError("peptides and alleles must be the same length")
+    cluster_ids = np.full(len(peptides), -1, dtype=int)
+    by_allele = {}
+    for i, a in enumerate(alleles):
+        by_allele.setdefault(a, []).append(i)
+    offset = 0
+    for allele, idxs in by_allele.items():
+        sub = [peptides[i] for i in idxs]
+        sub_ids = _mmseqs_one(sub, identity_threshold, mmseqs_bin)
+        for j, i in enumerate(idxs):
+            cluster_ids[i] = int(sub_ids[j]) + offset
+        offset += int(sub_ids.max()) + 1 if len(sub_ids) else 0
+    return cluster_ids
+ 
+ 
+# --- add these functions at the END of splits.py (numpy already imported) ---
+
+
+def _hamming_le_threshold(a, b, max_diffs):
+    """True if equal-length a, b differ in <= max_diffs positions."""
+    diffs = 0
+    for x, y in zip(a, b):
+        if x != y:
+            diffs += 1
+            if diffs > max_diffs:
+                return False
+    return True
+
+
+def _cluster_unique_peptides(uniq_peps, identity_threshold):
+    """Greedy single-linkage on UNIQUE peptides, bucketed by length.
+
+    Returns {peptide: local_cluster_id}. Only compares within a length bucket and
+    against existing reps, so cost stays low once exact duplicates are removed.
+    """
+    by_len = {}
+    for p in uniq_peps:
+        by_len.setdefault(len(p), []).append(p)
+
+    cid_of = {}
+    next_id = 0
+    for length, peps in by_len.items():
+        max_diffs = int(round((1.0 - identity_threshold) * length))
+        reps = []
+        for p in peps:
+            hit = None
+            for rep_pep, rep_cid in reps:
+                if _hamming_le_threshold(p, rep_pep, max_diffs):
+                    hit = rep_cid
+                    break
+            if hit is None:
+                hit = next_id
+                reps.append((p, hit))
+                next_id += 1
+            cid_of[p] = hit
+    return cid_of
+
+def hamming_cluster(peptides, alleles=None, identity_threshold=0.8):
+    """Near-duplicate-aware clustering for short peptides, globally-unique ids.
+
+    The peptide-appropriate near-duplicate method. Protein clustering tools
+    (MMseqs2/CD-HIT) rely on k-mer prefilters that don't transfer to 8-11mers
+    (they barely cluster short peptides), so this uses Hamming identity directly.
+    Per allele: dedup exact repeats, then greedy single-linkage by Hamming
+    identity within each length bucket. Near-duplicates must share length and
+    allele, keeping comparisons cheap. Cluster ids are offset per allele so none
+    collide. Stricter than exact_dedup_cluster (catches 1-2 residue near-dups);
+    use for the final leakage-controlled split.
+    """
+    peptides = list(peptides)
+    n = len(peptides)
+    cluster_ids = np.full(n, -1, dtype=int)
+
+    if alleles is None:
+        alleles = ["_"] * n
+    else:
+        alleles = list(alleles)
+        if len(alleles) != n:
+            raise ValueError("peptides and alleles must be the same length")
+
+    by_allele = {}
+    for i, a in enumerate(alleles):
+        by_allele.setdefault(a, []).append(i)
+
+    offset = 0
+    for allele, idxs in by_allele.items():
+        uniq = list({peptides[i] for i in idxs})
+        cid_of = _cluster_unique_peptides(uniq, identity_threshold)
+        local_max = max(cid_of.values()) if cid_of else -1
+        for i in idxs:
+            cluster_ids[i] = cid_of[peptides[i]] + offset
+        offset += local_max + 1
     return cluster_ids

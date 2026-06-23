@@ -57,7 +57,7 @@ def _cmd_train(args) -> int:
     from pmhcpresent.io.pseudoseq import load_pseudosequences_json
     from pmhcpresent.train import PeptideMHCDataset, TrainConfig, train_model, evaluate
     from pmhcpresent.models.nn import PresentationNet, NetConfig
-    from pmhcpresent.eval.splits import exact_dedup_cluster
+    from pmhcpresent.eval.splits import hamming_cluster
     from pmhcpresent.eval.stratified import assign_frequency_bins
 
     df = pd.read_csv(args.data)
@@ -77,7 +77,7 @@ def _cmd_train(args) -> int:
     )
 
     # cluster-based holdout so similar peptides don't leak across the split
-    clusters = exact_dedup_cluster(ds.peptides, ds.alleles)
+    clusters = hamming_cluster(ds.peptides, ds.alleles, identity_threshold=args.cluster_threshold)
     rng = np.random.default_rng(42)
     uniq = np.unique(clusters)
     val_clusters = set(rng.choice(uniq, size=max(1, len(uniq) // 5), replace=False))
