@@ -145,13 +145,25 @@ python scripts/select_decoys.py \
 **5. Per-residue anchor PAE analysis** (Mac): `python3 scripts/analyse_pae.py boltz-experiments --out pae_analysis.csv`
 → binder-vs-decoy anchor PAE per allele.
 
+**6. Interface geometry** (Mac): `python3 scripts/extract_geometry.py boltz-experiments --out geometry_features.csv`
+→ peptide-MHC contact counts, anchor contacts, anchor-pocket distances (needs biotite:
+`pip install biotite --break-system-packages`).
+
 **Alleles folded (pilot, 6 total):** covered = B\*27:09, B\*27:05, A\*02:01, B\*07:02;
 orphan = C\*15:05, C\*16:02. Each with real binders + motif-distant decoys.
 
-**Result (negative, tested two ways):** Boltz confidence (iptm) and anchor PAE do **not**
-discriminate binders from decoys — decoys score as confidently as binders, for covered and
-orphan alleles alike. Fold confidence ≠ binding. Consistent with King et al. 2025
-(arXiv:2512.06592): Boltz-2 underperforms sequence for affinity even fine-tuned.
+**Result — a thorough negative, tested THREE ways:** none of Boltz's signals discriminate
+binders from decoys —
+  1. **iptm** (interface confidence): flat ~0.98–0.99 for binders and decoys alike.
+  2. **PAE** (per-residue anchor error): no consistent binder/decoy gap.
+  3. **Interface geometry** (contact counts): no separation; decoys often make *more*
+     contacts (partly a peptide-length artifact).
+Boltz confidently docks any plausible peptide into the groove regardless of whether it is
+truly presented — so fold confidence, error, and geometry all reflect "a peptide is in the
+groove," not "this peptide belongs here." Holds for covered and orphan (HLA-C) alleles alike.
+Consistent with King et al. 2025 (arXiv:2512.06592): Boltz-2 underperforms sequence for
+affinity even when fine-tuned. **RQ1, for Boltz: structure does not beat (or even match)
+sequence — it produces no usable binding signal.**
 
 ---
 
@@ -171,7 +183,11 @@ orphan alleles alike. Fold confidence ≠ binding. Consistent with King et al. 2
 - Boltz folds used `num_samples: 1` — meeting action: re-run with multiple samples, check the
   confidence *distribution* (single folds may be noisy).
 - For a fair RQ1 comparison, structure & sequence should use the **same** positives/negatives.
-- Still to test: geometric features (contacts/pockets from the .cif), AF2 (Chris's tuned-MSA
-  code; needs NVIDIA Container Toolkit on Beta — not yet installed), ESMFold (free API).
+- Boltz structural signals now EXHAUSTED (confidence, PAE, geometry — all null). Remaining
+  structural avenues are OTHER models and OTHER representations, not more Boltz features:
+    - **AF2** with Chris's tuned MSAs (needs NVIDIA Container Toolkit on Beta — not yet installed).
+    - **ESMFold** (free API, ~100/day) — does the negative replicate on a language-model folder?
+    - **Structure embeddings** (King et al. lead) — do learned representations carry
+      *complementary* signal to sequence, especially in the weak/orphan regime (RQ2)?
 - `data/` and `models/` are gitignored, so a fresh clone can't reproduce without them —
   document where to obtain/regenerate the Atlas download and pseudoseq JSONs.
