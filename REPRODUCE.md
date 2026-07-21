@@ -22,7 +22,26 @@ data and outputs live. Goal: nothing is a one-off; every number/figure is re-tes
 
 | Result | Script | Command | Output |
 |---|---|---|---|
-| Labelled dataset (838k rows, 123 alleles) | `scripts/prepare_atlas.py` | `python scripts/prepare_atlas.py` <!-- verify flags --> | `data/processed/atlas_labelled.csv` |
+| Labelled dataset (838k rows, 123 alleles) | `scripts/prepare_atlas.py` | see command below | `data/processed/atlas_labelled.csv` |
+
+```
+python scripts/prepare_atlas.py \
+  --input data/raw/all_peptides.txt \
+  --output data/processed/atlas_labelled.csv \
+  --neg-mode peptide-pool \
+  --ratio 1.0 --min-len 8 --max-len 11 --seed 42
+```
+
+Flags: `--input` = raw Atlas `all_peptides.txt`; `--output` = labelled CSV;
+`--neg-mode {proteome,peptide-pool}` (current dataset used **peptide-pool**; swap to
+`proteome --proteome <human_proteome.fasta>` later — nothing downstream changes);
+`--ratio` negatives per positive (default 1.0); `--min-len`/`--max-len` peptide length
+window (8–11); `--seed` for reproducible negative sampling.
+<!-- verify: exact --input path of the raw atlas file, and the seed you actually used -->
+
+The script filters to classical HLA A/B/C, normalises alleles (`A0201` → `HLA-A*02:01`,
+matching the pseudoseq loader's canonical key), labels atlas rows as positives, and
+generates length-matched negatives per allele. Output columns: `peptide, allele, label, length`.
 
 - Source: MHC Motif Atlas (`all_peptides.txt`), filtered to classical HLA A/B/C, 8–11mers;
   1:1 negatives (peptide-pool mode; proteome-sampled is the planned upgrade).
