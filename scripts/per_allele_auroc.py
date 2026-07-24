@@ -20,7 +20,7 @@ import torch
 from sklearn.metrics import roc_auc_score
 
 from pmhcpresent.io.pseudoseq import load_pseudosequences_json
-from pmhcpresent.train import PeptideMHCDataset, TrainConfig, evaluate
+from pmhcpresent.train import PeptideMHCDataset, TrainConfig
 from pmhcpresent.models.nn import PresentationNet, NetConfig
 from pmhcpresent.eval.splits import hamming_cluster
 from pmhcpresent.eval.stratified import assign_frequency_bins
@@ -130,7 +130,7 @@ def main():
         if len(s):
             print(f"    {b:10s}  n={len(s):3d}  AUROC median {s.median():.3f}  "
                   f"[{s.min():.3f} – {s.max():.3f}]")
-    print(f"\n  worst 5 alleles:")
+    print("\n  worst 5 alleles:")
     for _, r in res.nsmallest(5, "auroc").iterrows():
         print(f"    {r.allele:14s}  AUROC {r.auroc:.3f}  (peptides={r.peptide_count})")
     print(f"\nWrote {args.out}")

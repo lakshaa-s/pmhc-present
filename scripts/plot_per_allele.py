@@ -38,14 +38,17 @@ for _, r in worst.iterrows():
                 color=INK, va="center",
                 arrowprops=dict(arrowstyle="-", color="#AAB9BC", lw=0.7))
 
-ax.set_xticks([0, 1, 2]); ax.set_xticklabels(["HLA-A", "HLA-B", "HLA-C"], fontsize=12)
+ax.set_xticks([0, 1, 2])
+ax.set_xticklabels(["HLA-A", "HLA-B", "HLA-C"], fontsize=12)
 ax.set_ylabel("Per-allele test AUROC", fontsize=12.5)
 ax.set_title("Per-allele performance by locus — HLA-C trails",
              fontsize=13.5, fontweight="bold", color=INK, pad=12)
 ax.set_ylim(min(0.87, df.auroc.min()-0.01), 1.0)
 ax.legend(frameon=False, fontsize=9.5, loc="lower left")
-ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
-ax.yaxis.grid(True, color="#E1EAEA", lw=0.7); ax.set_axisbelow(True)
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
+ax.yaxis.grid(True, color="#E1EAEA", lw=0.7)
+ax.set_axisbelow(True)
 fig.text(0.5, -0.02,
          "Each point = one allele. HLA-C is motif-distinct from the A/B-heavy training "
          "data, consistent with the orphan-allele effect.",

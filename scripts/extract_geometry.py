@@ -29,7 +29,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-import biotite.structure as struc
 import biotite.structure.io.pdbx as pdbx
 
 CONTACT_CUTOFF = 4.5      # Angstrom, heavy-atom contact
