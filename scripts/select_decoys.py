@@ -88,10 +88,15 @@ def main():
     ap.add_argument("--peptide-col", default="peptide")
     ap.add_argument("--label-col", default="label")
     ap.add_argument("--out", default="decoy_set.csv")
+    ap.add_argument("--peptide-length", type=int, default=None,
+                    help="restrict to peptides of exactly this length (e.g. 9 for HISTOFold)")
     args = ap.parse_args()
 
     df = pd.read_csv(args.data)
     pos = df[df[args.label_col] == 1]
+    if args.peptide_length:
+        pos = pos[pos[args.peptide_col].str.len() == args.peptide_length]
+        print(f"restricted to {args.peptide_length}mers: {len(pos)} positives")
     pseudo = load_pseudoseqs(args.pseudoseq)
 
     candidates = [a for a in pos[args.allele_col].unique() if a in pseudo]
