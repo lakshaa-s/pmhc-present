@@ -30,8 +30,7 @@ def normalize_allele(allele: str) -> str:
     otherwise, so nothing is silently dropped.
     """
     a = allele.strip().upper().replace(" ", "")
-    if a.startswith("HLA-"):
-        a = a[4:]
+    a = a.removeprefix("HLA-")
     # a is now like "A*02:01" | "A02:01" | "A0201" | "DRB1*15:01"
     if "*" not in a and len(a) >= 5 and a[0].isalpha():
         # insert the star after the locus letters (A/B/C, or DRB1 etc.)

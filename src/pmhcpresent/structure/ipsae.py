@@ -43,7 +43,7 @@ def run_ipsae(
         str(pae_json), str(model_path),
         str(pae_cutoff), str(dist_cutoff),
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
     if proc.returncode != 0:
         raise RuntimeError(f"ipSAE failed (exit {proc.returncode}):\n{proc.stderr}")
 

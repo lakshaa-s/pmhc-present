@@ -1,5 +1,6 @@
 import numpy as np
-from pmhcpresent.eval.splits import hamming_identity, greedy_cluster, grouped_kfold
+
+from pmhcpresent.eval.splits import greedy_cluster, grouped_kfold, hamming_identity
 
 
 def test_hamming_identity():

@@ -2,8 +2,8 @@ import pytest
 
 torch = pytest.importorskip("torch")  # skip cleanly if torch isn't installed here
 
-from pmhcpresent.models.nn import PresentationNet, NetConfig, count_parameters
 from pmhcpresent.io.peptides import VOCAB_SIZE
+from pmhcpresent.models.nn import NetConfig, PresentationNet, count_parameters
 
 
 def test_forward_shape():

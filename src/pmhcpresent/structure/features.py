@@ -13,11 +13,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from pmhcpresent.structure.plddt import interface_plddt
 from pmhcpresent.structure.contacts import contact_features
-from pmhcpresent.structure.shape import shape_complementarity_stub
 from pmhcpresent.structure.ipsae import run_ipsae
-
+from pmhcpresent.structure.plddt import interface_plddt
+from pmhcpresent.structure.shape import shape_complementarity_stub
 
 # Which feature groups need a re-fold per mutant (RQ3 cost model).
 REFOLD_REQUIRED = {

@@ -1,7 +1,12 @@
 from pmhcpresent.io.netmhcpan import (
-    NetMHCpanRecord, parse_netmhcpan_text, parse_netmhcpan_file, records_to_frame,
+    NetMHCpanRecord,
+    parse_netmhcpan_file,
+    parse_netmhcpan_text,
+    records_to_frame,
 )
-from pmhcpresent.io.peptides import encode_sequence, encode_batch, length_mask, VOCAB_SIZE, PAD_IDX
+from pmhcpresent.io.peptides import PAD_IDX, VOCAB_SIZE, encode_batch, encode_sequence, length_mask
 from pmhcpresent.io.pseudoseq import (
-    load_pseudosequences, PseudoSequenceMap, normalize_allele,
+    PseudoSequenceMap,
+    load_pseudosequences,
+    normalize_allele,
 )

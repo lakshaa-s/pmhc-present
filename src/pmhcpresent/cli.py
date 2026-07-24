@@ -43,7 +43,8 @@ def _cmd_struct_features(args) -> int:
 def _cmd_cluster(args) -> int:
     from pmhcpresent.eval.splits import greedy_cluster
 
-    peptides = [ln.strip() for ln in open(args.path) if ln.strip()]
+    with open(args.path) as fh:
+        peptides = [ln.strip() for ln in fh if ln.strip()]
     cids = greedy_cluster(peptides, args.threshold)
     print(f"{len(peptides)} peptides → {len(set(cids))} clusters "
           f"at identity ≥ {args.threshold}")
@@ -54,11 +55,11 @@ def _cmd_train(args) -> int:
     import numpy as np
     import pandas as pd
 
-    from pmhcpresent.io.pseudoseq import load_pseudosequences_json
-    from pmhcpresent.train import PeptideMHCDataset, TrainConfig, train_model, evaluate
-    from pmhcpresent.models.nn import PresentationNet, NetConfig
     from pmhcpresent.eval.splits import hamming_cluster
     from pmhcpresent.eval.stratified import assign_frequency_bins
+    from pmhcpresent.io.pseudoseq import load_pseudosequences_json
+    from pmhcpresent.models.nn import NetConfig, PresentationNet
+    from pmhcpresent.train import PeptideMHCDataset, TrainConfig, evaluate, train_model
 
     df = pd.read_csv(args.data)
     pseudo = load_pseudosequences_json(args.pseudoseq)  # one or more JSON paths

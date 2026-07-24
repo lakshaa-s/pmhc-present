@@ -33,7 +33,7 @@ def ppv_at_k(y_true: np.ndarray, y_score: np.ndarray, k: int) -> float:
 
 def summary(y_true: np.ndarray, y_score: np.ndarray, top_k: int = 100) -> dict:
     return {
-        "n": int(len(y_true)),
+        "n": len(y_true),
         "n_pos": int(np.sum(y_true)),
         "auroc": auroc(y_true, y_score),
         "ap": average_precision(y_true, y_score),

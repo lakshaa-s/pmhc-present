@@ -1,4 +1,4 @@
-from pmhcpresent.io.peptides import encode_sequence, encode_batch, PAD_IDX, UNK_IDX, AA_TO_IDX
+from pmhcpresent.io.peptides import AA_TO_IDX, PAD_IDX, UNK_IDX, encode_batch, encode_sequence
 
 
 def test_padding_and_length():

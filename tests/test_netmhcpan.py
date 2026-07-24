@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from pmhcpresent.io.netmhcpan import parse_netmhcpan_file
 
 FIXTURE = Path(__file__).parent / "fixtures" / "netmhcpan_sample.txt"

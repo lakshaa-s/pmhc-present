@@ -3,9 +3,10 @@ import pytest
 pytest.importorskip("torch")
 
 import numpy as np
-from pmhcpresent.models.nn import PresentationNet, NetConfig
-from pmhcpresent.train import PeptideMHCDataset, TrainConfig, train_model, evaluate
+
 from pmhcpresent.io.peptides import AMINO_ACIDS
+from pmhcpresent.models.nn import NetConfig, PresentationNet
+from pmhcpresent.train import PeptideMHCDataset, TrainConfig, evaluate, train_model
 
 
 def _make_learnable_dataset(n=400, seed=0):

@@ -18,7 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 struct = ["biopython", "freesasa"]
 ml = ["torch"]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff==0.16.0"]
 
 [project.scripts]
 pmhcpresent = "pmhcpresent.cli:main"

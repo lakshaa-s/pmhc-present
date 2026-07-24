@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
+
 def hamming_identity(a: str, b: str) -> float:
     """Fractional identity for equal-length peptides (1.0 = identical)."""
     if len(a) != len(b):
@@ -113,7 +114,7 @@ def _cluster_unique_peptides(uniq_peps, identity_threshold):
     cid_of = {}
     next_id = 0
     for length, peps in by_len.items():
-        max_diffs = int(round((1.0 - identity_threshold) * length))
+        max_diffs = round((1.0 - identity_threshold) * length)
         reps = []
         for p in peps:
             hit = None
@@ -156,7 +157,7 @@ def hamming_cluster(peptides, alleles=None, identity_threshold=0.8):
         by_allele.setdefault(a, []).append(i)
 
     offset = 0
-    for allele, idxs in by_allele.items():
+    for idxs in by_allele.values():
         uniq = list({peptides[i] for i in idxs})
         cid_of = _cluster_unique_peptides(uniq, identity_threshold)
         local_max = max(cid_of.values()) if cid_of else -1

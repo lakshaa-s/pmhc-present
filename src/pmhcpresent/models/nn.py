@@ -26,9 +26,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import torch
-import torch.nn as nn
+from torch import nn
 
-from pmhcpresent.io.peptides import VOCAB_SIZE, PAD_IDX
+from pmhcpresent.io.peptides import PAD_IDX, VOCAB_SIZE
 
 
 @dataclass

@@ -59,7 +59,7 @@ class PeptideMHCDataset(Dataset):
         max_pep_len: int = 15,
         pseudoseq_len: int = 34,
         drop_missing: bool = True,
-    ) -> "PeptideMHCDataset":
+    ) -> PeptideMHCDataset:
         """Build from a DataFrame, mapping alleles → pseudosequences.
 
         Rows whose allele has no pseudosequence are dropped (``drop_missing``) with the

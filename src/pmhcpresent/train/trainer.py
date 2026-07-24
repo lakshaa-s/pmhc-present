@@ -16,10 +16,10 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.utils.data import DataLoader
 
-from pmhcpresent.eval.metrics import summary, per_allele
+from pmhcpresent.eval.metrics import per_allele, summary
 from pmhcpresent.eval.stratified import stratified_metrics
 
 

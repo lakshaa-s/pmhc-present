@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from pmhcpresent.structure._pdb import Residue, parse_pdb, chains, min_interatomic_distance
+from pmhcpresent.structure._pdb import Residue, chains, min_interatomic_distance, parse_pdb
 
 
 def interface_residues(

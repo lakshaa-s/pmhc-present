@@ -15,10 +15,9 @@ large runs; this parser exists for the human-readable stdout you get by default.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
-
 
 # Tokens that, if all present on a line, mark the column header row.
 _HEADER_MARKERS = ("Pos", "MHC", "Peptide")

@@ -1,6 +1,9 @@
 import pytest
+
 from pmhcpresent.io.pseudoseq import (
-    normalize_allele, load_pseudosequences, PseudoSequenceMap,
+    PseudoSequenceMap,
+    load_pseudosequences,
+    normalize_allele,
 )
 
 

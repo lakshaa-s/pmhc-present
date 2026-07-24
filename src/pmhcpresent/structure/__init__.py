@@ -1,3 +1,7 @@
-from pmhcpresent.structure.features import extract_structure_features, StructureFeatures, REFOLD_REQUIRED
-from pmhcpresent.structure.plddt import interface_plddt
 from pmhcpresent.structure.contacts import contact_features
+from pmhcpresent.structure.features import (
+    REFOLD_REQUIRED,
+    StructureFeatures,
+    extract_structure_features,
+)
+from pmhcpresent.structure.plddt import interface_plddt

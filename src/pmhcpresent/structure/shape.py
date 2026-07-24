@@ -35,7 +35,7 @@ def buried_surface_area(
     Returns ``{'bsa': float}`` or raises a clear error if freesasa is missing.
     """
     try:
-        import freesasa  # noqa: F401
+        import freesasa
     except ImportError as e:  # pragma: no cover
         raise ImportError(
             "buried_surface_area needs freesasa (`pip install freesasa`). This is an "
@@ -43,7 +43,8 @@ def buried_surface_area(
         ) from e
 
     import freesasa
-    from pmhcpresent.structure._pdb import parse_pdb, chains  # noqa: F401
+
+    from pmhcpresent.structure._pdb import chains, parse_pdb  # noqa: F401
 
     structure = freesasa.Structure(str(pdb_path))
     complex_area = freesasa.calc(structure).totalArea()

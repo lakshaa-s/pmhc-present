@@ -24,6 +24,7 @@ def test_length_mismatch_raises():
 
 def test_from_frame_drops_missing_alleles(capsys):
     import pandas as pd
+
     from pmhcpresent.io.pseudoseq import PseudoSequenceMap
 
     df = pd.DataFrame({
