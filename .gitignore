@@ -79,3 +79,4 @@ config.local.yaml
 *.swp
 third_party/
 *.png
+fold_sets/
