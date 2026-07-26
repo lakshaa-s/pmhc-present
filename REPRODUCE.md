@@ -120,20 +120,38 @@ Alleles removed per experiment: A\*02 = 9 family members; A\*03/A\*11 = 3; B\*27
 Boltz folds via API; outputs in `~/Downloads/boltz_prediction/boltz-experiments/`.
 API key in `.env` (gitignored — never commit).
 
-**1. Select a diverse fold set** (on Beta — needs atlas + pseudoseqs):
+**1. Select canonical binders** (on Beta — needs atlas + pseudoseqs):
 ```
-python scripts/select_fold_set.py --data data/processed/atlas_labelled.csv \
-  --pseudoseq data/pseudoseq/hla_a.json data/pseudoseq/hla_b.json data/pseudoseq/hla_c.json \
-  --n-alleles 5 --k-peptides 2 --out fold_set_pilot.csv
-```
-Selects max-diversity alleles (seeded with covered anchors + orphan HLA-C).
-
-**2. Select decoys** (motif-distant peptides as negatives):
-```
-python scripts/select_decoys.py \
+python scripts/select_fold_set_canonical.py \
   --data data/processed/atlas_labelled.csv \
   --pseudoseq data/pseudoseq/hla_a.json data/pseudoseq/hla_b.json data/pseudoseq/hla_c.json \
-  --out decoy_set.csv
+  --peptide-length 9 --n-alleles 5 --k-peptides 6 \
+  --out fold_sets/fold_set_9mer_canonical_k6.csv
+```
+Alleles are chosen by max-min pocket-pseudosequence distance (seeded with covered anchors
+and orphan HLA-C). Peptides are scored against a PWM built from that allele's own atlas
+positives, and the top decile is then diversified — so binders are motif-typical rather
+than maximally diverse. **This supersedes `select_fold_set.py`** (max-diversity), which
+selects motif-atypical peptides and is unsuitable for a discrimination test.
+
+**2. Select decoys** (motif-mismatched, anchor-rejected):
+```
+python scripts/select_decoys_clean.py \
+  --data data/processed/atlas_labelled.csv \
+  --pseudoseq data/pseudoseq/hla_a.json data/pseudoseq/hla_b.json data/pseudoseq/hla_c.json \
+  --peptide-length 9 --k-decoys 6 \
+  --out fold_sets/decoy_set_9mer_clean_k6.csv
+```
+Candidates come from the 3 most motif-distant donor alleles, then are rejected if they
+score above the 25th percentile of the target's real binders **or** carry any of the
+target's top-4 preferred residues at P2 / C-terminus. **This supersedes
+`select_decoys.py`**, which used allele-level distance only and leaked anchor-carrying
+peptides into the decoy set.
+
+Combine into one fold set:
+```
+cat fold_sets/fold_set_9mer_canonical_k6.csv fold_sets/decoy_set_9mer_clean_k6.csv \
+  > fold_sets/fold_set_60.csv
 ```
 
 **3. Fold** (on Mac, in the Boltz folder): copy the CSV to `complexes/hla_class_i.csv`, then
@@ -149,21 +167,53 @@ python scripts/select_decoys.py \
 → peptide-MHC contact counts, anchor contacts, anchor-pocket distances (needs biotite:
 `pip install biotite --break-system-packages`).
 
-**Alleles folded (pilot, 6 total):** covered = B\*27:09, B\*27:05, A\*02:01, B\*07:02;
-orphan = C\*15:05, C\*16:02. Each with real binders + motif-distant decoys.
+**7. AUROC vs the sequence baseline** (Mac): `python3 scripts/auroc_structure.py --pae pae_analysis_k6.csv --geometry geometry_k6.csv --out structure_auroc.csv`
+→ treats each structural feature as a binding score and computes AUROC over binder/decoy
+labels, so it is directly comparable to the sequence model's AUROC.
 
-**Result — a thorough negative, tested THREE ways:** none of Boltz's signals discriminate
-binders from decoys —
-  1. **iptm** (interface confidence): flat ~0.98–0.99 for binders and decoys alike.
-  2. **PAE** (per-residue anchor error): no consistent binder/decoy gap.
-  3. **Interface geometry** (contact counts): no separation; decoys often make *more*
-     contacts (partly a peptide-length artifact).
-Boltz confidently docks any plausible peptide into the groove regardless of whether it is
-truly presented — so fold confidence, error, and geometry all reflect "a peptide is in the
-groove," not "this peptide belongs here." Holds for covered and orphan (HLA-C) alleles alike.
-Consistent with King et al. 2025 (arXiv:2512.06592): Boltz-2 underperforms sequence for
-affinity even when fine-tuned. **RQ1, for Boltz: structure does not beat (or even match)
-sequence — it produces no usable binding signal.**
+**Fold sets (all 9mers, for HISTOFold compatibility):** 5 alleles spanning covered→orphan
+(B\*27:05, A\*02:01, B\*07:02, C\*15:05, C\*16:02), 6 canonical binders + 6 motif-mismatched
+decoys each = 60 complexes. Binders are top-decile by the allele's own PWM; decoys are
+rejected if they carry the target's preferred anchor residues (see script docstrings).
+
+**Result — anchor-localised PAE discriminates; confidence and geometry do not.**
+
+| Feature | Pooled AUROC (n=60) |
+|---|---|
+| `pae_anchors` (P2 + C-term) | **0.783** |
+| `pae_anchorC` | 0.759 |
+| `pae_anchor2` | 0.737 |
+| `pae_pep_mhc` (whole interface) | 0.694 |
+| contact/geometry features | 0.21 – 0.41 |
+| `iptm` | ~flat 0.98–0.99 for binders and decoys alike |
+
+Signal *increases* as the metric localises to the anchor positions (0.694 whole-interface
+→ 0.783 anchors), which matches anchor-dominated binding biology. Geometry features sit
+*below* 0.5 — decoys tend to make slightly more contacts — so contacts are not a binding
+proxy.
+
+Per-allele `pae_anchors` AUROC: C\*15:05 **0.972**, B\*07:02 0.917, C\*16:02 0.750,
+B\*27:05 0.722, A\*02:01 **0.639**. Note the inverse relationship with the sequence model:
+A\*02:01 is the sequence model's best allele and structure's worst; C\*15:05 is the
+sequence model's worst (0.889) and structure's best. **Structure appears strongest exactly
+where sequence is weakest** — the complementarity that RQ2 asks about, consistent with
+King et al. 2025 (arXiv:2512.06592), who found structure and sequence embeddings combine
+most usefully where the sequence model is weak.
+
+**[CORRECTION — supersedes an earlier finding.]** An initial pilot concluded that *no*
+Boltz signal discriminated. That was an artifact of the fold set, not of Boltz: the
+max-diversity peptide selection had picked motif-atypical "binders" (e.g. `LVAKVRALD`
+assigned to B\*07:02 with neither anchor), and allele-level distance alone let
+anchor-carrying peptides into the decoy set (e.g. `QRSRFIVVV`, P2-Arg, as a B\*27:05
+"decoy"). Rebuilt with canonical binders and anchor-rejected decoys, the anchor-PAE signal
+appears clearly. The confidence (`iptm`) and geometry negatives survive the correction.
+
+**Caveats.** 6 binders + 6 decoys per allele — the pooled figure and the consistency of
+direction across five alleles are more reliable than any single per-allele AUROC. 0.783 is
+well below the sequence model's ~0.97, so structure alone does **not** outperform sequence
+(RQ1 remains negative); the interest is in complementarity (RQ2). The two AUROCs are also
+not strictly comparable: the sequence figure is over a large held-out set with pooled
+negatives, this one over 60 designed complexes with motif-mismatched decoys.
 
 ---
 
@@ -179,15 +229,26 @@ sequence — it produces no usable binding signal.**
 
 ## Known caveats / TODO
 
-- Boltz pilot is small (5 alleles, ~2 binders + 2 decoys each) — pilot signal, not a benchmark.
-- Boltz folds used `num_samples: 1` — meeting action: re-run with multiple samples, check the
-  confidence *distribution* (single folds may be noisy).
+- Fold sets are 6 binders + 6 decoys per allele across 5 alleles — enough to establish
+  direction, not enough for tight per-allele estimates. Scaling to more peptides per
+  allele (and more alleles) is the obvious next step.
+- Boltz folds used `num_samples: 1` — meeting action: re-run with multiple samples, check
+  the confidence *distribution* (single folds may be noisy).
+- Binder/decoy selection is sensitive to how "binder" and "decoy" are defined: the first
+  pilot's null result was caused by motif-atypical binders and anchor-carrying decoys.
+  Any change to the selection scripts warrants re-checking the discrimination result.
 - For a fair RQ1 comparison, structure & sequence should use the **same** positives/negatives.
-- Boltz structural signals now EXHAUSTED (confidence, PAE, geometry — all null). Remaining
-  structural avenues are OTHER models and OTHER representations, not more Boltz features:
-    - **AF2** with Chris's tuned MSAs (needs NVIDIA Container Toolkit on Beta — not yet installed).
-    - **ESMFold** (free API, ~100/day) — does the negative replicate on a language-model folder?
+  Currently they do not: the sequence AUROC is over a large held-out set with pooled
+  negatives, the structural AUROC over 60 designed complexes with motif-mismatched decoys.
+- Remaining structural avenues:
+    - **AF2 / HISTOFold** (Chris's tuned MSAs, github.com/drchristhorpe/HISTOFold) — needs
+      Docker + NVIDIA Container Toolkit on Beta (sudo available; not yet installed).
+      Currently 9mer-only; Chris is extending it to 8-11mers.
+    - **ESMFold2** — API key received from Chris; ~100 predictions/day. Use the **'fast'**
+      variant (Chris's benchmarking found it better on pMHC, especially peptide confidence
+      for unseen peptides). Mind the structure-tokens-per-minute limit; rate-limiting code
+      at github.com/drchristhorpe/esmfold2_benchmarking.
     - **Structure embeddings** (King et al. lead) — do learned representations carry
-      *complementary* signal to sequence, especially in the weak/orphan regime (RQ2)?
+      *complementary* signal to sequence in the weak/orphan regime (RQ2)?
 - `data/` and `models/` are gitignored, so a fresh clone can't reproduce without them —
   document where to obtain/regenerate the Atlas download and pseudoseq JSONs.
