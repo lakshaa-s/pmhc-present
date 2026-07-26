@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from pmhcpresent.io.peptides import AMINO_ACIDS
-from pmhcpresent.models.nn import PresentationNet, NetConfig
-from pmhcpresent.train import PeptideMHCDataset, TrainConfig, train_model, evaluate
 from pmhcpresent.eval.splits import greedy_cluster
+from pmhcpresent.io.peptides import AMINO_ACIDS
+from pmhcpresent.models.nn import NetConfig, PresentationNet
+from pmhcpresent.train import PeptideMHCDataset, TrainConfig, evaluate, train_model
 
 RNG = np.random.default_rng(0)
 HYDROPHOBIC = set("VILMFWY")

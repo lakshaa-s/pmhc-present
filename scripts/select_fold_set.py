@@ -67,8 +67,9 @@ def load_pseudoseqs(paths):
     """Return {allele_name: pseudosequence} from Chris's pocket-pseudoseq JSONs."""
     out = {}
     for p in paths:
-        d = json.load(open(p))
-        for entry in d.values() if isinstance(d, dict) else d:
+        with open(p) as fh:
+            d = json.load(fh)
+        for entry in (d.values() if isinstance(d, dict) else d):
             try:
                 name = entry["canonical_allele"]["protein_allele_name"]
                 seq = entry["pocket_pseudosequence"]

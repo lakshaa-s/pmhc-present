@@ -20,15 +20,17 @@ Reads boltz_features-style folder names: '{tag}__{allele_slug}__{peptide}'.
 """
 
 from __future__ import annotations
+
 import argparse
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 
 def load_pae(path):
     d = np.load(path)
-    pae = np.asarray(d[list(d.keys())[0]], dtype=float)
+    pae = np.asarray(d[next(iter(d.keys()))], dtype=float)
     if pae.ndim == 3:
         pae = pae[0]
     return pae

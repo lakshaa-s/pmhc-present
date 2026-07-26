@@ -24,12 +24,13 @@ Needs: biotite (`pip install biotite --break-system-packages`).
 """
 
 from __future__ import annotations
+
 import argparse
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
-
-import biotite.structure.io.pdbx as pdbx
+from biotite.structure.io import pdbx
 
 CONTACT_CUTOFF = 4.5      # Angstrom, heavy-atom contact
 CLOSE_CUTOFF = 3.5        # tighter packing

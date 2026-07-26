@@ -60,7 +60,7 @@ def pae_summary(pae_path: Path, peptide_len: int | None) -> dict:
     try:
         data = np.load(pae_path)
         # npz: take the first array (key name may vary)
-        key = list(data.keys())[0]
+        key = next(iter(data.keys()))
         pae = np.asarray(data[key], dtype=float)
         if pae.ndim == 3:  # (samples, L, L) -> take first sample
             pae = pae[0]

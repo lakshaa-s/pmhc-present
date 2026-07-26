@@ -19,18 +19,18 @@ import pandas as pd
 import torch
 from sklearn.metrics import roc_auc_score
 
-from pmhcpresent.io.pseudoseq import load_pseudosequences_json
-from pmhcpresent.train import PeptideMHCDataset, TrainConfig
-from pmhcpresent.models.nn import PresentationNet, NetConfig
 from pmhcpresent.eval.splits import hamming_cluster
 from pmhcpresent.eval.stratified import assign_frequency_bins
+from pmhcpresent.io.pseudoseq import load_pseudosequences_json
+from pmhcpresent.models.nn import NetConfig, PresentationNet
+from pmhcpresent.train import PeptideMHCDataset, TrainConfig
 
 
 def make_split(df, allele_col, peptide_col, frac_val=0.2, seed=42):
     clusters = hamming_cluster(df[peptide_col].tolist(), df[allele_col].tolist())
     rng = np.random.default_rng(seed)
     uniq = np.unique(clusters)
-    n_val = max(1, int(round(len(uniq) * frac_val)))
+    n_val = max(1, round(len(uniq) * frac_val))
     val_clusters = set(rng.choice(uniq, size=n_val, replace=False))
     return np.array([c in val_clusters for c in clusters])
 

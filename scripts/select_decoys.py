@@ -46,7 +46,8 @@ def locus_of(allele: str) -> str:
 def load_pseudoseqs(paths):
     out = {}
     for p in paths:
-        d = json.load(open(p))
+        with open(p) as fh:
+            d = json.load(fh)
         for entry in (d.values() if isinstance(d, dict) else d):
             try:
                 name = entry["canonical_allele"]["protein_allele_name"]

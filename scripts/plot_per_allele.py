@@ -2,9 +2,10 @@
 Shows the full 123-allele spread and the HLA-C tail. Reads results/per_allele_auroc.csv.
 """
 import sys
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 csv = sys.argv[1] if len(sys.argv) > 1 else "results/per_allele_auroc.csv"
 df = pd.read_csv(csv)
@@ -36,7 +37,7 @@ for _, r in worst.iterrows():
     ax.annotate(r["allele"], xy=(xpos[loc], r["auroc"]),
                 xytext=(xpos[loc]+0.38, r["auroc"]), fontsize=8.5,
                 color=INK, va="center",
-                arrowprops=dict(arrowstyle="-", color="#AAB9BC", lw=0.7))
+                arrowprops={"arrowstyle": "-", "color": "#AAB9BC", "lw": 0.7})
 
 ax.set_xticks([0, 1, 2])
 ax.set_xticklabels(["HLA-A", "HLA-B", "HLA-C"], fontsize=12)
