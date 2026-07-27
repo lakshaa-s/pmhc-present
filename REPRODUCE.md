@@ -154,6 +154,31 @@ cat fold_sets/fold_set_9mer_canonical_k6.csv fold_sets/decoy_set_9mer_clean_k6.c
   > fold_sets/fold_set_60.csv
 ```
 
+**2b. Select ANCHOR-MATCHED (hard) decoys** — the adversarial control:
+```
+python scripts/select_decoys_hard.py \
+  --data data/processed/atlas_labelled.csv \
+  --peptide-length 9 --k-decoys 6 \
+  --out fold_sets/decoy_set_hard.csv
+```
+Inverts the filter: candidates must *carry* the target's top-4 preferred residues at both
+P2 and the C-terminus, while still scoring below the 50th percentile of the target's real
+binders. Real eluted ligands of other alleles are used rather than synthetic
+anchor-preserving scrambles, because a scrambled sequence is out of distribution for a
+protein-language-model backbone — high predicted error would then reflect implausibility
+rather than non-binding.
+
+These fold into a separate directory, with the binders copied in for comparison:
+```
+python scripts/fold_esmfold2.py --csv fold_sets/decoy_set_hard.csv \
+  --sequences data/sequences --out esmfold2-hard
+cp -r esmfold2-experiments/NA__* esmfold2-hard/     # 30 binders + 30 hard decoys
+python scripts/analyse_pae.py esmfold2-hard --out pae_esmfold2_hard.csv
+python scripts/auroc_structure.py --pae pae_esmfold2_hard.csv --out auroc_esmfold2_hard.csv
+```
+`analyse_pae.py` treats folder tags `decoy` and `hard` as negatives, anything else as a
+binder.
+
 **3. Fold** (on Mac, in the Boltz folder): copy the CSV to `complexes/hla_class_i.csv`, then
 `uv run boltz_pmhc_class_i.py`. Each pMHC ≈ $0.05.
 
@@ -217,13 +242,129 @@ negatives, this one over 60 designed complexes with motif-mismatched decoys.
 
 ---
 
-## Where things live
+## Structure phase (ESMFold2) — RUNS ON BETA
+
+ESMFold2 (Biohub, built on the ESMC 6B backbone) runs **locally on Beta's RTX 4090** —
+no API, no rate limit, no cost. Model load is ~13.7 GB of the 24 GB card, leaving room for
+a ~383-residue complex.
+
+Environment (separate from `pmhcpresent`, which is on Python 3.13 — the `esm` package
+requires >=3.12,<3.13):
+```
+conda create -n esmfold2 python=3.12 -y
+conda activate esmfold2
+pip install esm@git+https://github.com/Biohub/esm.git@main
+```
+Weights download from HuggingFace on first use (~25 GB across 6 shards, cached thereafter).
+Optional speedups, not required: `pip install xformers flash-attn`.
+
+Allele sequences must be on Beta at `data/sequences/` (`hla_{a,b,c}.json`, `human_b2m.json`
+— the same files Chris ships with the Boltz code).
+
+**Fold the same 60 complexes:**
+```
+conda activate esmfold2
+python scripts/fold_esmfold2.py \
+  --csv fold_sets/fold_set_60.csv \
+  --sequences data/sequences \
+  --out esmfold2-experiments
+```
+Chains match the Boltz setup (A = MHC, B = β2m, C = peptide) and the output layout is
+identical (`outputs/files/prediction/{metrics.json, sample_0_pae.npz}`), so the analysis
+scripts run unchanged. `--num-diffusion-samples N` folds each complex N times and records
+per-sample metrics under `all_sample_results` (ESMFold2 applies fresh LM dropout per fold,
+so repeats are genuinely diverse) — this is the cheap route to the confidence *distribution*.
+
+No `.cif` is written, so `extract_geometry.py` does not apply; pass only `--pae` to the
+AUROC script.
+
+```
+python scripts/analyse_pae.py esmfold2-experiments --out pae_esmfold2.csv
+python scripts/auroc_structure.py --pae pae_esmfold2.csv --out auroc_esmfold2.csv
+```
+
+Beyond PAE, the result object also exposes `pair_chains_iptm` (per-chain-pair interface
+confidence — the MHC↔peptide element is more targeted than global iptm) and
+`output_embedding_sequence` / `output_embedding_pair_pooled`, which `fold_esmfold2.py`
+saves to `embeddings.npz`. Those embeddings are the raw material for the RQ2
+combined-representation work.
+
+---
+
+## Two-model comparison — the headline structural result
+
+Identical 60 complexes (5 alleles × 6 canonical binders + 6 decoys), identical analysis.
+`pae_anchors` = mean PAE of peptide P2 and C-terminus vs the MHC.
+
+**Decoy difficulty matters, and should always be stated alongside the number.** Two
+classes were used:
+- **motif-mismatched** (`select_decoys_clean.py`) — anchor-carrying candidates *rejected*,
+  so rejectable on anchors alone;
+- **anchor-matched** (`select_decoys_hard.py`) — candidates *required* to carry the
+  target's anchors at P2 and C-terminus while scoring low overall, removing the anchor
+  shortcut.
+
+| Pooled AUROC (n=60) | Boltz (mismatched) | ESMFold2 (mismatched) | ESMFold2 (anchor-matched) |
+|---|---|---|---|
+| `pae_anchors` | 0.783 | **0.911** | **0.700** |
+| `pae_anchor2` | 0.737 | 0.921 | 0.759 |
+| `pae_pep_mhc` | 0.694 | 0.863 | 0.672 |
+
+Per-allele `pae_anchors`:
+
+| Allele | Boltz (mismatched) | ESMFold2 (mismatched) | ESMFold2 (anchor-matched) |
+|---|---|---|---|
+| HLA-A\*02:01 | 0.639 | 0.944 | 0.639 |
+| HLA-B\*07:02 | 0.917 | 1.000 | 0.972 |
+| HLA-B\*27:05 | 0.722 | 1.000 | 0.889 |
+| HLA-C\*15:05 | 0.972 | 1.000 | 0.639 |
+| HLA-C\*16:02 | 0.750 | 0.972 | 0.667 |
+
+**Anchor-localised PAE carries binding signal in two independent architectures** — so
+this is a property of structure prediction on pMHC, not an artifact of one model. Signal
+increases as the metric localises to the anchors (whole-interface 0.863 → anchors 0.911
+under ESMFold2), while global confidence (`iptm`) and contact counts carry nothing.
+
+**But roughly two-thirds of that signal is anchor recognition.** Against anchor-matched
+decoys, ESMFold2 falls from 0.911 to 0.700. It stays above chance and all five alleles
+keep the expected direction, so there is residual sensitivity to groove fit beyond the
+anchors — but the headline figure is highly sensitive to how negatives are built.
+
+Note also that `pae_anchor2` (P2 only, 0.759) *beats* the P2+C-term average under the
+harder test, and `pae_anchorC` is the weakest component (0.630) — most of the residual
+signal sits at P2.
+
+**The equity claim does not survive the harder test.** Against mismatched decoys,
+C\*15:05 — the sequence model's worst allele (per-allele AUROC 0.889) — scored 1.000,
+suggesting structure helps most where sequence fails. Against anchor-matched decoys it
+drops to 0.639, while B\*07:02 (0.972) and B\*27:05 (0.889) hold up. So the apparent
+inverse relationship between sequence and structure performance was largely an artifact
+of easy negatives. Whether structure genuinely complements sequence in the orphan-allele
+regime (RQ2) is still open.
+
+**Caveats.**
+- 6 binders + 6 decoys per allele. Per-allele AUROCs move by ~0.03 per swapped pair;
+  treat pooled figures and direction-consistency as the reliable signal.
+- **Not directly comparable to the sequence model's ~0.97.** That is over a large
+  held-out set with pooled negatives; these are 60 designed complexes. A like-for-like
+  comparison needs both models scored on the *same* positives and negatives — still
+  outstanding.
+- The anchor-matched decoys are conservative: "not observed on this allele" is weaker
+  than "does not bind this allele", so a few may be genuine binders, depressing the
+  measured AUROC.
+- Some mismatched-decoy PAE values are very large (14.5, 15.9) — worth checking whether
+  those folds are pathological rather than merely low-confidence.
 
 - **Code:** all in `~/pmhc-present` (committed). Structure analysis scripts in `scripts/`.
-- **Data:** `data/processed/atlas_labelled.csv`, `data/pseudoseq/*.json` (Beta; gitignored).
+- **Data:** `data/processed/atlas_labelled.csv`, `data/pseudoseq/*.json`,
+  `data/sequences/*.json` (Beta; gitignored).
 - **Models:** `models/*.pt` (Beta; gitignored).
 - **Sequence results:** `results/*.csv` (Beta; gitignored — BACK UP separately).
-- **Boltz outputs:** `boltz-experiments/` (Mac only — BACK UP to Drive; they cost credits).
+- **Boltz outputs:** `boltz-experiments/` + `boltz-clean/` (Mac only — BACK UP to Drive;
+  they cost credits). `boltz-clean/` holds just the current 60-complex set.
+- **ESMFold2 outputs:** `esmfold2-experiments/` (Beta; free to regenerate, so lower
+  backup priority — but the embeddings are worth keeping).
+- **Fold sets:** `fold_sets/` (Beta; gitignored).
 
 ---
 
@@ -231,24 +372,31 @@ negatives, this one over 60 designed complexes with motif-mismatched decoys.
 
 - Fold sets are 6 binders + 6 decoys per allele across 5 alleles — enough to establish
   direction, not enough for tight per-allele estimates. Scaling to more peptides per
-  allele (and more alleles) is the obvious next step.
-- Boltz folds used `num_samples: 1` — meeting action: re-run with multiple samples, check
-  the confidence *distribution* (single folds may be noisy).
-- Binder/decoy selection is sensitive to how "binder" and "decoy" are defined: the first
-  pilot's null result was caused by motif-atypical binders and anchor-carrying decoys.
-  Any change to the selection scripts warrants re-checking the discrimination result.
+  allele (and more alleles) is the obvious next step, and is now cheap: ESMFold2 runs
+  locally on Beta with no per-fold cost.
+- Boltz folds used `num_samples: 1`. ESMFold2 supports `--num-diffusion-samples N` for the
+  confidence *distribution* the meeting asked for — not yet run.
+- Binder/decoy selection dominates the result. The first pilot's null came from
+  motif-atypical binders and anchor-carrying decoys; the corrected easy-decoy set then
+  gave 0.911; anchor-matched decoys bring it to 0.700. **Always report which decoy class
+  a structural AUROC refers to.** Any change to the selection scripts warrants re-running
+  both comparisons.
+- The obvious next probe: if most of the signal is at P2, does discrimination survive
+  decoys matched at P2 *and* with similar overall composition? That would isolate whatever
+  groove-fit sensitivity remains.
 - For a fair RQ1 comparison, structure & sequence should use the **same** positives/negatives.
-  Currently they do not: the sequence AUROC is over a large held-out set with pooled
-  negatives, the structural AUROC over 60 designed complexes with motif-mismatched decoys.
+  They currently do not — this is the most important outstanding methodological gap.
 - Remaining structural avenues:
     - **AF2 / HISTOFold** (Chris's tuned MSAs, github.com/drchristhorpe/HISTOFold) — needs
-      Docker + NVIDIA Container Toolkit on Beta (sudo available; not yet installed).
-      Currently 9mer-only; Chris is extending it to 8-11mers.
-    - **ESMFold2** — API key received from Chris; ~100 predictions/day. Use the **'fast'**
-      variant (Chris's benchmarking found it better on pMHC, especially peptide confidence
-      for unseen peptides). Mind the structure-tokens-per-minute limit; rate-limiting code
-      at github.com/drchristhorpe/esmfold2_benchmarking.
-    - **Structure embeddings** (King et al. lead) — do learned representations carry
-      *complementary* signal to sequence in the weak/orphan regime (RQ2)?
+      Docker + NVIDIA Container Toolkit on Beta (sudo available; neither Docker nor Podman
+      currently installed). Currently 9mer-only; Chris is extending it to 8-11mers.
+      He is free to help from Wednesday afternoon.
+    - **ESMFold2-Fast** — Chris's benchmarking found the fast variant better on pMHC,
+      especially peptide confidence for unseen peptides. Only the standard model has been
+      run so far; `--model biohub/ESMFold2-Fast` (repo name unverified).
+    - **Structure embeddings** (King et al. lead) — `fold_esmfold2.py` already saves
+      ESMFold2's sequence and pooled-pair embeddings per fold. Do learned representations
+      carry *complementary* signal to sequence in the weak/orphan regime (RQ2)?
 - `data/` and `models/` are gitignored, so a fresh clone can't reproduce without them —
-  document where to obtain/regenerate the Atlas download and pseudoseq JSONs.
+  document where to obtain/regenerate the Atlas download, pseudoseq JSONs, and
+  `data/sequences/`.

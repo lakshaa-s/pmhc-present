@@ -35,34 +35,46 @@ Repeating on HLA-A\*03:01 and HLA-B\*27:05 did **not** reproduce the collapse �
 alleles retain relatives outside the removed set — so this is a mechanism that operates
 in specific cases, not a universal law.
 
-**Structure: anchor-localised PAE discriminates binders from decoys.** Folding a
-controlled set (5 alleles × 6 canonical binders + 6 anchor-mismatched decoys, all
+**Structure: anchor-localised PAE carries binding signal, but much of it is anchor
+recognition.** Folding a controlled set (5 alleles × 6 canonical binders + 6 decoys, all
 9mers) and scoring the predicted aligned error at the peptide's anchor positions
-(P2 and C-terminus):
+(P2 and C-terminus). Two decoy classes were used, differing in difficulty:
 
-| Feature (pooled AUROC, n=60) | Boltz-2.1 | ESMFold2 |
-|---|---|---|
-| `pae_anchors` (P2 + C-term) | 0.783 | **0.911** |
-| `pae_pep_mhc` (whole interface) | 0.694 | 0.863 |
-| interface geometry (contacts) | 0.21–0.41 | — |
-| `iptm` (global confidence) | ~flat 0.98–0.99 | — |
+- **Motif-mismatched decoys** — real ligands of other alleles, filtered to *exclude* the
+  target's preferred anchor residues. Rejectable on anchors alone.
+- **Anchor-matched decoys** — real ligands of other alleles that *carry* the target's
+  anchors at both P2 and the C-terminus but score low against its overall motif. The
+  anchor shortcut is removed, so discrimination must come from groove fit.
 
-Two points stand out. Signal **increases as the metric localises to the anchors**,
-matching anchor-dominated binding biology — global confidence and raw contact counts
-carry nothing. And the effect **replicates across two independent architectures**, so
-it is a property of structure prediction on pMHC rather than a quirk of one model.
+| Pooled AUROC (n=60) | Boltz-2.1 (mismatched) | ESMFold2 (mismatched) | ESMFold2 (anchor-matched) |
+|---|---|---|---|
+| `pae_anchors` (P2 + C-term) | 0.783 | **0.911** | **0.700** |
+| `pae_anchor2` (P2 only) | 0.737 | 0.921 | 0.759 |
+| `pae_pep_mhc` (whole interface) | 0.694 | 0.863 | 0.672 |
+| interface geometry (contacts) | 0.21–0.41 | — | — |
+| `iptm` (global confidence) | ~flat 0.98–0.99 | — | — |
 
-The equity pattern inverts relative to the sequence model: **HLA-C\*15:05, the sequence
-model's worst allele (0.889), is the structural model's best (1.000 under ESMFold2)**,
-while HLA-A\*02:01 — the sequence model's strongest — is structurally weakest. Structure
-appears to help most exactly where sequence-based prediction fails, which is the
-complementarity RQ2 asks about.
+Three things stand out. Signal **increases as the metric localises to the anchors** —
+global confidence and raw contact counts carry nothing, matching anchor-dominated binding
+biology. The effect **replicates across two independent architectures**, so it is a
+property of structure prediction on pMHC rather than a quirk of one model. And roughly
+**two-thirds of the apparent signal is anchor recognition**: against anchor-matched
+decoys, discrimination falls from 0.911 to 0.700. It stays above chance and every allele
+still points the right way, so there is residual sensitivity to groove fit beyond the
+anchors — but the headline number depends heavily on how negatives are constructed.
 
-*Caveats:* 6 binders + 6 decoys per allele, so per-allele figures are coarse. The
-structural AUROC is **not** directly comparable to the sequence model's 0.974 — the
-latter is over a large held-out set with pooled negatives, the former over 60 designed
-complexes whose decoys were explicitly filtered to lack the target's anchors. Whether
-the result survives harder (anchor-matching) decoys is under test.
+Under the harder test, HLA-B\*07:02 (0.972) and HLA-B\*27:05 (0.889) retain most of their
+discrimination while HLA-A\*02:01 (0.639), HLA-C\*15:05 (0.639) and HLA-C\*16:02 (0.667)
+lose most of theirs. The apparent equity advantage seen against mismatched decoys —
+C\*15:05 scoring 1.000 where the sequence model scores 0.889 — does **not** survive; it
+was largely an artifact of easy negatives. Whether structure genuinely complements
+sequence in the orphan-allele regime (RQ2) remains open.
+
+*Caveats:* 6 binders + 6 decoys per allele, so per-allele figures are coarse. Neither
+structural AUROC is directly comparable to the sequence model's 0.974, which is measured
+over a large held-out set with pooled negatives rather than 60 designed complexes. The
+anchor-matched decoys are also a conservative test: "not observed on this allele" is
+weaker than "does not bind this allele", so some may be genuine binders.
 
 ## Pipeline
 
@@ -112,7 +124,9 @@ ESMFold2 needs its own conda environment: the `esm` package requires Python
   residues. *Supersedes `select_decoys.py`, which used allele-level distance only and
   leaked anchor-carrying peptides into the decoy set.*
 - `select_decoys_hard.py` — adversarial decoys that **do** carry the target's anchors
-  but score low overall, to test whether the structural signal is more than anchor-matching
+  but score low overall. Running these showed ~two-thirds of the apparent structural
+  signal was anchor recognition (0.911 → 0.700), so both decoy classes should be
+  reported together.
 
 **Folding & structural analysis**
 - `fold_esmfold2.py` — folds pMHC complexes with ESMFold2 on Beta; writes Boltz-compatible

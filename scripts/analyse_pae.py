@@ -45,7 +45,7 @@ def parse_name(name):
     if allele_slug.startswith(("hla_a_", "hla_b_", "hla_c_")):
         b = allele_slug.split("_")
         allele = f"HLA-{b[1].upper()}*{b[2]}:{b[3]}"
-    is_decoy = tag == "decoy"
+    is_decoy = tag in ("decoy", "hard")
     return allele, peptide, is_decoy
 
 
