@@ -80,3 +80,6 @@ config.local.yaml
 third_party/
 *.png
 fold_sets/
+esmfold2-experiments/
+esmfold2-hard/
+*.log
