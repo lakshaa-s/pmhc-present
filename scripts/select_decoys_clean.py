@@ -83,6 +83,20 @@ def load_pseudoseqs(paths):
     return out
 
 
+
+def load_val_pairs(path):
+    """(allele, peptide) pairs on the validation side, from scripts/make_split.py.
+
+    The split is read from disk rather than recomputed. `hamming_cluster` assigns
+    cluster ids by walking its input in order, so clustering a filtered subset
+    (positives only, one length only) produces a *different* split than clustering
+    the full table — same seed or not. Recomputing here silently drew ~80% of
+    "held-out" peptides from the training split.
+    """
+    d = pd.read_csv(path)
+    return set(zip(d["allele"], d["peptide"]))
+
+
 def build_pwm(peptides, length, pseudocount=0.5):
     counts = np.full((length, len(AA)), pseudocount, dtype=float)
     n = 0
@@ -149,6 +163,9 @@ def main():
     ap.add_argument("--allele-col", default="allele")
     ap.add_argument("--peptide-col", default="peptide")
     ap.add_argument("--label-col", default="label")
+    ap.add_argument("--val-split",
+                    help="CSV of validation (allele, peptide) pairs from "
+                         "scripts/make_split.py; restricts selection to unseen peptides")
     ap.add_argument("--out", default="decoy_set_clean.csv")
     args = ap.parse_args()
 
@@ -156,6 +173,14 @@ def main():
     pos = df[df[args.label_col] == 1]
     pos = pos[pos[args.peptide_col].str.len() == args.peptide_length]
     print(f"{len(pos)} positives at length {args.peptide_length}\n")
+
+    if args.val_split:
+        held = load_val_pairs(args.val_split)
+        before = len(pos)
+        pos = pos[[(a, p) in held for a, p in
+                   zip(pos[args.allele_col], pos[args.peptide_col])]]
+        print(f"validation split only: {before} -> {len(pos)} positives "
+              f"(from {args.val_split})")
 
     pseudo = load_pseudoseqs(args.pseudoseq)
     candidates_alleles = [a for a in sorted(pos[args.allele_col].unique()) if a in pseudo]
