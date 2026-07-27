@@ -1,53 +1,142 @@
-# pmhcpresent - Cancer-antigen discovery (HLA-I presentation, equity lens)
+# pmhcpresent — Cancer-antigen discovery (HLA-I presentation, equity lens)
 
 COMP0190 / AI4BH 2025–26. Predicts which tumour-derived peptides are presented by
 HLA class I, and asks whether predictions hold up equitably across ancestrally
 diverse populations.
 
+For exact commands to regenerate every result below, see **[REPRODUCE.md](REPRODUCE.md)**.
+
 ## Research questions
 
-- **RQ1** - Do AlphaFold-derived 3D structure models beat sequence models for
-  underrepresented HLA alleles?
-- **RQ2** - Do sequence and structure models combine synergistically in an ensemble?
-- **RQ3** - Does in-silico saturation mutagenesis show the two model types learned
-  the same binding biology? (Novel Extension)
+- **RQ1** — Do 3D structure models beat sequence models for underrepresented HLA alleles?
+- **RQ2** — Do sequence and structure models combine synergistically in an ensemble?
+- **RQ3** — Does in-silico saturation mutagenesis show the two model types learned
+  the same binding biology? (novel extension)
+
+## Results so far
+
+**Sequence baseline.** Pan-allele NN (peptide + 34-mer pocket pseudosequence),
+near-duplicate-aware split via Hamming clustering: **AUROC ≈ 0.974**, equity gap
+across representation bins ≈ 0.007. The score is robust to tightening the split from
+exact-duplicate to near-duplicate removal, so it is not leakage-inflated.
+
+**The equity gap is driven by motif isolation, not data volume.** Per-allele AUROC
+across all 123 alleles shows HLA-C systematically trailing (median 0.951 vs 0.977 for
+HLA-A and 0.980 for HLA-B). Data-rich HLA-C alleles underperform too — C\*12:03 has
+3,026 peptides and still scores 0.927 — so the driver is that HLA-C is motif-distinct
+from the HLA-A/B-dominated training data rather than simply scarce.
+
+**Cross-allele transfer sustains rare alleles (the orphan-allele mechanism).** A 2×2
+ablation on HLA-A\*02:01 (starve the allele's own data × remove its motif-similar
+family) shows performance collapses only when *both* are removed: 0.967 → 0.904, with
+error bars 20× wider. Starving alone or removing the family alone costs almost nothing.
+So an allele with little data is fine *provided a motif-similar allele is represented*.
+Repeating on HLA-A\*03:01 and HLA-B\*27:05 did **not** reproduce the collapse — those
+alleles retain relatives outside the removed set — so this is a mechanism that operates
+in specific cases, not a universal law.
+
+**Structure: anchor-localised PAE discriminates binders from decoys.** Folding a
+controlled set (5 alleles × 6 canonical binders + 6 anchor-mismatched decoys, all
+9mers) and scoring the predicted aligned error at the peptide's anchor positions
+(P2 and C-terminus):
+
+| Feature (pooled AUROC, n=60) | Boltz-2.1 | ESMFold2 |
+|---|---|---|
+| `pae_anchors` (P2 + C-term) | 0.783 | **0.911** |
+| `pae_pep_mhc` (whole interface) | 0.694 | 0.863 |
+| interface geometry (contacts) | 0.21–0.41 | — |
+| `iptm` (global confidence) | ~flat 0.98–0.99 | — |
+
+Two points stand out. Signal **increases as the metric localises to the anchors**,
+matching anchor-dominated binding biology — global confidence and raw contact counts
+carry nothing. And the effect **replicates across two independent architectures**, so
+it is a property of structure prediction on pMHC rather than a quirk of one model.
+
+The equity pattern inverts relative to the sequence model: **HLA-C\*15:05, the sequence
+model's worst allele (0.889), is the structural model's best (1.000 under ESMFold2)**,
+while HLA-A\*02:01 — the sequence model's strongest — is structurally weakest. Structure
+appears to help most exactly where sequence-based prediction fails, which is the
+complementarity RQ2 asks about.
+
+*Caveats:* 6 binders + 6 decoys per allele, so per-allele figures are coarse. The
+structural AUROC is **not** directly comparable to the sequence model's 0.974 — the
+latter is over a large held-out set with pooled negatives, the former over 60 designed
+complexes whose decoys were explicitly filtered to lack the target's anchors. Whether
+the result survives harder (anchor-matching) decoys is under test.
 
 ## Pipeline
 
-NetMHCpan-4.1 (sequence baseline) → custom PyTorch NN → AlphaFold 3D features → ensemble.
+```
+MHC Motif Atlas ──► prepare_atlas.py ──► labelled set (838k rows, 123 alleles)
+                                              │
+                    ┌─────────────────────────┴──────────────────────┐
+                    ▼                                                ▼
+        sequence model (PyTorch NN)                    fold-set selection (PWM-based)
+        + per-allele AUROC                                           │
+        + ablation studies                          ┌────────────────┼────────────────┐
+                    │                               ▼                ▼                ▼
+                    │                            Boltz-2.1       ESMFold2      HISTOFold/AF2
+                    │                               └────────────────┼────────────────┘
+                    │                                                ▼
+                    │                                   PAE / geometry features
+                    └──────────────────────► ensemble (RQ2) ◄────────┘
+```
 
 ## Where things run
 
-| Stage | Mac (local dev) | Beta (GPU) |
+| Stage | Machine | Environment |
 |---|---|---|
-| Repo / configs / parsers / metrics | ✅ | ✅ |
-| NN architecture + forward test (MPS dummy tensors) | ✅ | ✅ |
-| Structure-feature extraction from example PDBs | ✅ | ✅ |
-| Data prep (atlas → labelled set, pseudoseq join) | ✅ | ✅ |
-| AlphaFold folding & per-mutant re-folds (RQ3) | ❌ | ✅ |
-| NetMHCpan runs at scale | ❌ | ✅ |
-| Full NN training | ❌ | ✅ |
+| Data prep, sequence training, ablations, per-allele AUROC | Beta (RTX 4090) | `pmhcpresent` |
+| Fold-set selection (canonical binders, decoys) | Beta | `pmhcpresent` |
+| Boltz folding (cloud API — no local GPU needed) | Mac | `.venv` via `uv` |
+| ESMFold2 folding (local, ~13.7 GB VRAM) | Beta | `esmfold2` (Python 3.12) |
+| HISTOFold / AF2 folding | Beta | Docker container *(not yet set up)* |
+
+ESMFold2 needs its own conda environment: the `esm` package requires Python
+>=3.12,<3.13, while `pmhcpresent` runs 3.13.
+
+## Scripts
+
+**Data & sequence model**
+- `prepare_atlas.py` — atlas positives → labelled table with generated negatives
+- `per_allele_auroc.py` / `plot_per_allele.py` — per-allele AUROC across all 123 alleles
+- `ablation_a2.py` — dose-response starvation of a single allele (Condition A)
+- `ablation_a2_condB.py` — 2×2 starve × remove-family for HLA-A\*02
+- `ablation_family_condB.py` — the same, generalised via `--family-regex`
+
+**Fold-set construction**
+- `select_fold_set_canonical.py` — motif-typical binders (PWM top decile, then
+  diversified). *Supersedes `select_fold_set.py`, which maximised diversity and so
+  selected motif-atypical peptides — unsuitable for a discrimination test.*
+- `select_decoys_clean.py` — decoys rejected for carrying the target's anchor
+  residues. *Supersedes `select_decoys.py`, which used allele-level distance only and
+  leaked anchor-carrying peptides into the decoy set.*
+- `select_decoys_hard.py` — adversarial decoys that **do** carry the target's anchors
+  but score low overall, to test whether the structural signal is more than anchor-matching
+
+**Folding & structural analysis**
+- `fold_esmfold2.py` — folds pMHC complexes with ESMFold2 on Beta; writes Boltz-compatible
+  output plus embeddings
+- `extract_boltz_features.py` — confidence metrics + PAE summaries per fold
+- `analyse_pae.py` — per-residue anchor PAE, binder vs decoy
+- `extract_geometry.py` — interface contacts from predicted structures
+- `auroc_structure.py` — structural features as classifiers, AUROC vs the sequence baseline
 
 ## Data
 
 | Source | Use | In git? |
 |---|---|---|
-| MHC Motif Atlas (class I MS peptides) | Presented-peptide labels (positives) | ❌ (gitignored) |
-| Per-locus pseudosequence JSONs (`hla_a/b/c.json`) | 34-mer pocket pseudosequence per allele | ❌ (gitignored) |
-| Generated decoys | Non-presented peptides (negatives) | ❌ (built by prep step) |
+| MHC Motif Atlas (class I MS peptides) | Presented-peptide labels (positives) | ❌ gitignored |
+| Per-locus pseudosequence JSONs | 34-mer pocket pseudosequence per allele | ❌ gitignored |
+| Per-locus canonical sequence JSONs | Full HLA + β2m sequences for folding | ❌ gitignored |
+| Generated decoys | Non-presented peptides (negatives) | ❌ built by prep step |
+| Fold outputs (`boltz-*`, `esmfold2-*`) | Predicted structures, PAE, embeddings | ❌ gitignored |
 
-`scripts/prepare_atlas.py` turns the positives-only atlas file into a labelled
-training table: it filters to classical HLA (A/B/C) and 8–11mers, normalises allele
-names to `HLA-A*02:01` form, labels presented peptides `1`, and generates
-length-matched negatives per allele (`label=0`) at a configurable ratio.
-
-Pseudosequences are loaded via `load_pseudosequences_json` from the per-locus JSONs
-(`entry["pocket_pseudosequence"]`, keyed by `protein_allele_name`).
-
-> **Negative-sampling note:** `--neg-mode proteome` (random human-proteome peptides
-> the allele does not present) is the intended decoy set; `--neg-mode peptide-pool`
-> is a no-external-data fallback for quick baselines. Negative strategy lives
-> upstream of the dataset, so it can be swapped without changing downstream code.
+`scripts/prepare_atlas.py` filters to classical HLA (A/B/C) and 8–11mers, normalises
+allele names to `HLA-A*02:01` form, labels presented peptides `1`, and generates
+length-matched negatives per allele. `--neg-mode proteome` (random human-proteome
+peptides) is the intended decoy set; `--neg-mode peptide-pool` is a no-external-data
+fallback and is what the current dataset uses.
 
 ## RQ3 scoring constraint (designed into the structure module)
 
@@ -76,3 +165,6 @@ python scripts/prepare_atlas.py \
   --output data/processed/atlas_labelled.csv \
   --neg-mode peptide-pool
 ```
+
+For the structural pipeline (fold-set selection → folding → PAE analysis → AUROC),
+see [REPRODUCE.md](REPRODUCE.md).
