@@ -84,3 +84,4 @@ esmfold2-experiments/
 esmfold2-hard/
 *.log
 esmfold2-*/
+boltz-*/
