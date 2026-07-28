@@ -111,7 +111,10 @@ def main():
 
     best = res[(res.scope == "pooled")].sort_values("auroc", ascending=False).iloc[0]
     print(f"\nbest pooled feature: {best.feature} (AUROC {best.auroc:.3f})")
-    print("Sequence-model baseline for comparison: ~0.97 (pooled, full test set).")
+    print("Sequence baseline on THIS fold set (val-only, anchor-matched decoys):")
+    print("  pooled 0.794 | A*02:01 0.694  B*07:02 1.000  B*27:05 0.972"
+          "  C*15:05 0.556  C*16:02 0.528")
+    print("  (0.97 is the full-test-set figure vs pooled negatives -- not comparable here.)")
     print(f"Wrote {args.out}")
 
 
