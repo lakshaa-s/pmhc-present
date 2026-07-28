@@ -368,12 +368,130 @@ regime (RQ2) is still open.
 
 ---
 
+## The train/validation split — derive it ONCE
+
+```
+python scripts/make_split.py \
+  --data data/processed/atlas_labelled.csv \
+  --out data/processed/split_val.csv
+```
+Writes every validation-side `(allele, peptide)` pair (167,746 of 838,654 rows, 20%).
+Every script that needs the split reads this file. **Do not recompute it.**
+
+**[BUG — fixed 27 Jul]** Scripts originally reconstructed the split by calling
+`hamming_cluster` themselves with the same fraction and seed. That is not reproducible:
+`hamming_cluster` assigns cluster ids by walking its input in order, so clustering a
+*filtered subset* (positives only, 9mers only) produces different ids — and therefore a
+different split — than clustering the full table, identical seed notwithstanding.
+
+The effect was severe and silent. A fold set built with `--held-out-only` believed it had
+52,341 validation peptides to draw from; only 10,365 of those (20%) were actually
+held out, so ~80% of the "unseen" binders had been trained on. Measured leakage in the
+resulting fold set was 42%, concentrated in the positives — canonical top-PWM binders are
+exactly the peptides the model saw most of. Three alleles ended up with zero held-out
+binders and reported n/a.
+
+Selection scripts now take `--val-split data/processed/split_val.csv` (replacing
+`--held-out-only`), and the scorer reads the same file. Regenerating the fold set this way
+gives **0/60 leakage**.
+
+---
+
+## Like-for-like RQ1 comparison — both models, same 60 complexes
+
+The two arms were previously measured on different data (sequence: large held-out set,
+pooled negatives; structure: 60 designed complexes), so the numbers could not be compared.
+This closes that gap: one fold set, drawn from the validation split, scored by both models.
+
+**Build the set** (binders and hard decoys, both restricted to the validation split):
+```
+python scripts/select_fold_set_canonical.py \
+  --data data/processed/atlas_labelled.csv \
+  --pseudoseq data/pseudoseq/hla_a.json data/pseudoseq/hla_b.json data/pseudoseq/hla_c.json \
+  --peptide-length 9 --n-alleles 5 --k-peptides 6 \
+  --val-split data/processed/split_val.csv \
+  --out fold_sets/binders_val.csv
+
+python scripts/select_decoys_hard.py \
+  --data data/processed/atlas_labelled.csv \
+  --peptide-length 9 --k-decoys 6 \
+  --val-split data/processed/split_val.csv \
+  --out fold_sets/decoys_hard_val.csv
+
+cat fold_sets/binders_val.csv fold_sets/decoys_hard_val.csv > fold_sets/fold_set_val.csv
+```
+
+**Score the sequence model on it:**
+```
+python scripts/score_sequence_on_foldset.py \
+  --val-split data/processed/split_val.csv \
+  --pseudoseq data/pseudoseq/hla_a.json data/pseudoseq/hla_b.json data/pseudoseq/hla_c.json \
+  --model models/rq1_baseline_hamming.pt \
+  --fold-set fold_sets/fold_set_val.csv \
+  --out results/sequence_val.csv
+```
+Leakage is checked two ways, because binders and decoys differ: a **binder** leaks if that
+exact `(allele, peptide)` pair was trained on; a **decoy** is a validated ligand of a
+*different* allele, so the pairing never appears in the split file and what matters is
+whether the peptide was seen at all, under any allele.
+
+**Result — the sequence model is at chance on the orphan alleles.**
+
+| Allele | sequence AUROC (0% leakage, anchor-matched decoys) |
+|---|---|
+| HLA-B\*07:02 | 1.000 |
+| HLA-B\*27:05 | 0.972 |
+| HLA-A\*02:01 | 0.694 |
+| **HLA-C\*15:05** | **0.556** |
+| **HLA-C\*16:02** | **0.528** |
+| **pooled** | **0.794** |
+
+This is the sharpest form of the equity result so far. On the full held-out set with
+pooled negatives the model scores 0.974 overall and 0.89–0.93 on these HLA-C alleles;
+once the decoys carry the target's anchor residues, it has essentially nothing for them —
+0.556 and 0.528 are indistinguishable from guessing — while remaining near-perfect on
+HLA-B\*07:02 and HLA-B\*27:05. Most of its apparent HLA-C competence was anchor matching.
+
+For reference, on an *earlier* (leaky) version of this comparison the sequence model
+scored 1.000 against motif-mismatched decoys and 0.838 against anchor-matched ones —
+illustrating how much both the decoy class and leakage inflate the figure.
+
+**[PENDING]** The structural half of this comparison on the same 60 complexes.
+ESMFold2 is queued on Beta (the GPU is contended — another group member is running
+MHC-Fine); Boltz is being run on the Mac in parallel. Slot the number into the table
+above when it lands: the sequence model's 0.794 pooled / 0.556 / 0.528 is what it must
+be compared against.
+
+---
+
 ## Known caveats / TODO
 
+- **Never recompute the split.** Read `data/processed/split_val.csv` (from
+  `scripts/make_split.py`). Reconstructing it with `hamming_cluster` gives a different
+  answer whenever the input rows differ — see the split section above for how badly this
+  bit.
+- Beta's GPU is shared. ESMFold2 needs ~14.5 GB for weights plus ~2 GB working, so check
+  `nvidia-smi --query-compute-apps=pid,used_memory --format=csv` before launching; below
+  ~18 GB free it will OOM on every complex. A polling wrapper that waits for capacity:
+  ```
+  nohup bash -c 'PY=$HOME/.conda/envs/esmfold2/bin/python
+  while true; do
+    free=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits)
+    if [ "$free" -ge 18000 ]; then $PY scripts/fold_esmfold2.py ... ; break; fi
+    echo "$(date): ${free}MiB free, waiting"; sleep 300
+  done' > esmfold2_val.log 2>&1 &
+  ```
+  Use the absolute interpreter path — `conda activate` does not work in a `nohup` subshell
+  without `conda init`.
 - Fold sets are 6 binders + 6 decoys per allele across 5 alleles — enough to establish
-  direction, not enough for tight per-allele estimates. Scaling to more peptides per
-  allele (and more alleles) is the obvious next step, and is now cheap: ESMFold2 runs
-  locally on Beta with no per-fold cost.
+  direction, not enough for tight per-allele estimates. Per-allele AUROCs move by ~0.3
+  between fold sets at this n (ESMFold2 on HLA-A\*02:01: 0.639 on one set, 0.361 on
+  another). **Only pooled figures and direction-consistency should be interpreted.**
+  Scaling up is cheap now that ESMFold2 runs locally.
+- Restricting to the validation split leaves the HLA-C alleles with very few candidates
+  (~40-50 nine-mers each), so their "top decile" is effectively the whole pool and their
+  PWMs — including the detected anchor residues — shift noticeably between fold sets.
+  Treat HLA-C motif definitions as unstable.
 - Boltz folds used `num_samples: 1`. ESMFold2 supports `--num-diffusion-samples N` for the
   confidence *distribution* the meeting asked for — not yet run.
 - Binder/decoy selection dominates the result. The first pilot's null came from
