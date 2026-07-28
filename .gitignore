@@ -83,3 +83,4 @@ fold_sets/
 esmfold2-experiments/
 esmfold2-hard/
 *.log
+esmfold2-*/
