@@ -483,7 +483,8 @@ be compared against.
   ```
   Use the absolute interpreter path — `conda activate` does not work in a `nohup` subshell
   without `conda init`.
-- Fold sets are 6 binders + 6 decoys per allele across 5 alleles — enough to establish
+- **Superseded 29 July** (fold set v2 is 12 + 12 across 6 alleles; see below). Fold
+  sets were 6 binders + 6 decoys per allele across 5 alleles — enough to establish
   direction, not enough for tight per-allele estimates. Per-allele AUROCs move by ~0.3
   between fold sets at this n (ESMFold2 on HLA-A\*02:01: 0.639 on one set, 0.361 on
   another). **Only pooled figures and direction-consistency should be interpreted.**
@@ -503,7 +504,8 @@ be compared against.
   decoys matched at P2 *and* with similar overall composition? That would isolate whatever
   groove-fit sensitivity remains.
 - For a fair RQ1 comparison, structure & sequence should use the **same** positives/negatives.
-  They currently do not — this is the most important outstanding methodological gap.
+  **Resolved 29 July**: `fold_sets/fold_set_v2.csv` is scored by both arms, 0% leakage
+  against `data/processed/split_val.csv`.
 - Remaining structural avenues:
     - **AF2 / HISTOFold** (Chris's tuned MSAs, github.com/drchristhorpe/HISTOFold) — needs
       Docker + NVIDIA Container Toolkit on Beta (sudo available; neither Docker nor Podman
@@ -511,10 +513,113 @@ be compared against.
       He is free to help from Wednesday afternoon.
     - **ESMFold2-Fast** — Chris's benchmarking found the fast variant better on pMHC,
       especially peptide confidence for unseen peptides. Only the standard model has been
-      run so far; `--model biohub/ESMFold2-Fast` (repo name unverified).
+      run so far; `--model biohub/ESMFold2-Fast` (verified: loads and folds, and needs
+      less GPU memory than the standard model — it completed folds under contention
+      where the standard model OOMed).
     - **Structure embeddings** (King et al. lead) — `fold_esmfold2.py` already saves
       ESMFold2's sequence and pooled-pair embeddings per fold. Do learned representations
       carry *complementary* signal to sequence in the weak/orphan regime (RQ2)?
 - `data/` and `models/` are gitignored, so a fresh clone can't reproduce without them —
   document where to obtain/regenerate the Atlas download, pseudoseq JSONs, and
   `data/sequences/`.
+## 29 July — split reproducibility, and what it invalidated
+
+`scripts/make_split.py` (27 July) fixed script-to-script drift by writing the split to
+disk, but the underlying clustering was never reproducible. `hamming_cluster` built its
+unique-peptide list from a set comprehension; Python randomises string hashing per
+process, so set iteration order varied between runs, and because greedy single-linkage
+is order-dependent this changed cluster *membership*, not merely ids. Two identical
+invocations of `make_split.py` produced 167,703 and 167,617 validation rows. Nothing
+errored.
+
+Fixed at `af9f820` by sorting before linkage. `tests/test_split_determinism.py` asserts
+equality across four `PYTHONHASHSEED` values; verified end-to-end by two full runs
+producing byte-identical output.
+
+Consequences:
+- The June checkpoint's split is unrecoverable. Everything trained before `af9f820` was
+  rerun.
+- `models/rq1_baseline_split_v2.pt`, trained 29 July against `data/processed/split_val.csv`
+  (167,655 validation rows), final validation AUROC 0.9732 — against the June model's
+  0.9740, so the split draw was not driving any result.
+- `pmhcpresent train` now takes `--split`; without it the holdout is a fresh draw nothing
+  else can reproduce, and it warns.
+- The old 60-complex fold set showed 57% leakage against the regenerated split — not new
+  leakage, but selection and scoring no longer referring to the same draw. Rebuilt as
+  `fold_sets/fold_set_v2.csv`.
+
+**The current `split_val.csv` supersedes an unrecoverable earlier draw. Do not attempt to
+reconcile pre-29-July fold sets against it.**
+
+## Fold set v2
+
+144 complexes: 12 canonical binders + 12 anchor-matched decoys (`--max-pctile 25`) across
+HLA-A\*02:01, B\*07:02, B\*27:05, C\*03:04, C\*15:05, C\*16:02. 0% leakage.
+
+C\*03:04 was added as the data-volume control: 986 held-out candidate binders against
+B\*27:05's 975. Sequence model on this set (`results/sequence_v2.csv`): pooled 0.921;
+A\*02:01 0.979, B\*07:02 1.000, B\*27:05 1.000, C\*03:04 0.903, C\*16:02 0.861,
+C\*15:05 0.806.
+
+HLA-C occupies the bottom three at matched n, so the deficit is not a data-volume
+artefact. Note this supersedes the earlier "at chance on HLA-C" claim (0.556 / 0.528),
+which was n=6 noise.
+
+Caveat: C\*15:05 and C\*16:02 have only 44 and 39 held-out candidates, so their "top
+decile" is the entire pool and their binders are not canonical (69th-77th percentile
+by motif score). The other four alleles select from 97-294. Report the pool sizes.
+
+## Per-allele mechanisms (123 alleles)
+
+`scripts/ic_vs_performance.py`, `scripts/motif_distinctiveness.py`,
+`scripts/pseudoseq_vs_motif_distance.py`.
+
+Two independent predictors of per-allele AUROC:
+- **Anchor information content**: rho 0.660 (p 1e-16). Sample size: rho -0.020 (p 0.82).
+  Partial controlling for n: 0.672.
+- **Motif nearest-neighbour distance** (Jensen-Shannon between PWMs): rho -0.363
+  (p 3.7e-5). Isolated alleles do *worse* — consistent with transfer across similar
+  alleles, and with the A\*02:01 Condition B ablation.
+
+They are separable: controlling for each other, IC holds at 0.625 and motif distance at
+-0.252.
+
+**Pseudosequence distance does not predict AUROC** (rho -0.021, p 0.82), while motif
+distance survives controlling for it (-0.417). The pan-allele literature (Hoof 2009,
+Karosiene 2012, NetMHCIIpan-3.0) reports the transfer effect in *pseudosequence* space;
+the Frontiers 2023 study of non-European alleles hypothesised the motif-space version but
+lacked the alleles to test it. This is that test.
+
+Within HLA-C, motif distance is the strongest of the three loci (-0.508) where IC gives
+0.066 — so isolation, not low information, orders the HLA-C alleles.
+
+Reporting notes:
+- Use the partial correlations, not the standardised betas. beta(log n) = +0.369 and the
+  +0.221 for pseudosequence-controlling-for-motif are suppression artefacts against
+  near-zero marginals.
+- **Outstanding control**: PWM noise inflates apparent motif distance at low n, and those
+  alleles also have noisier AUROCs. Controlling for log n strengthens the effect, but log n
+  is a crude proxy for PWM estimation error. The clean test is subsampling a data-rich
+  allele to ~200 peptides and checking its nn_dist does not inflate. Not yet run.
+
+Falsified along the way:
+- HLA-C is *not* motif-broader than A or B at matched n (`locus_motif_breadth.py`);
+  HLA-A is broadest.
+- HLA-C is *not* data-poor in this dataset — median 1,760 9mers vs A 1,583, B 1,517.
+- The six shared-pseudosequence allele pairs show no clean relationship between motif
+  divergence and AUROC. B\*14:01's 0.892 is better explained by n=103.
+
+## Anchor positions
+
+`scripts/derive_anchors.py` derives anchors per allele from position information content
+(>= 1.0 bits), writing `data/processed/anchors.json`. 43% of 123 alleles have a
+high-information position outside the hardcoded P2/C-terminus (HLA-A 75%, HLA-C 42%,
+HLA-B 25%) — mostly P1 for HLA-A, P5 for B\*08:01.
+
+Call these **high-information positions**, not anchors: much of the HLA-A signal is P1,
+which reflects proteasomal cleavage and TAP transport as well as groove binding.
+
+`analyse_pae.py` now emits `pae_anchors_ic` alongside the hardcoded features. On the Boltz
+hard-decoy set it gave 0.628 pooled vs 0.630 for `pae_anchors` — but +0.083 on C\*16:02,
+the only allele where the position sets differ. Underpowered rather than null; a proper
+test needs alleles whose anchor sets differ substantially.
