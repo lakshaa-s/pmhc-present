@@ -30,6 +30,7 @@ from sklearn.metrics import roc_auc_score
 # feature -> True if LOWER values indicate binding (so the score is negated)
 LOWER_IS_BINDING = {
     "pae_anchors": True,
+    "pae_anchors_ic": True,
     "pae_anchor2": True,
     "pae_anchorC": True,
     "pae_pep_mhc": True,

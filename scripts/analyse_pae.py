@@ -22,6 +22,7 @@ Reads boltz_features-style folder names: '{tag}__{allele_slug}__{peptide}'.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -49,7 +50,14 @@ def parse_name(name):
     return allele, peptide, is_decoy
 
 
-def fold_features(pae, peptide_len):
+def fold_features(pae, peptide_len, anchor_pos=None):
+    """PAE features for one fold.
+
+    anchor_pos: peptide positions to treat as anchors, in the convention used by
+    data/processed/anchors.json (0-based from the N-terminus, -1 = C-terminus).
+    When given, adds pae_anchors_ic. The hardcoded P2/C-terminus features are kept
+    unchanged so the two can be compared on identical folds.
+    """
     n = pae.shape[0]
     if not (0 < peptide_len < n):
         return {}
@@ -64,12 +72,18 @@ def fold_features(pae, peptide_len):
     def res_vs_mhc(i):
         return np.concatenate([pae[i, mhc].ravel(), pae[mhc, i].ravel()]).mean()
     a2, ac = res_vs_mhc(p2), res_vs_mhc(pc)
-    return {
+    out = {
         "pae_pep_mhc": float(interface.mean()),
         "pae_anchor2": float(a2),
         "pae_anchorC": float(ac),
         "pae_anchors": float((a2 + ac) / 2),
     }
+    if anchor_pos:
+        vals = [res_vs_mhc(pep_idx[i]) for i in anchor_pos
+                if -peptide_len <= i < peptide_len]
+        if vals:
+            out["pae_anchors_ic"] = float(np.mean(vals))
+    return out
 
 
 def main():
@@ -77,15 +91,26 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("root", nargs="?", default="boltz-experiments")
     ap.add_argument("--out", default="pae_analysis.csv")
+    ap.add_argument("--anchors", default="data/processed/anchors.json",
+                    help="per-allele anchor positions from scripts/derive_anchors.py; "
+                         "adds pae_anchors_ic alongside the hardcoded P2/C-term features")
     args = ap.parse_args()
 
     rows = []
+    anchor_table = {}
+    if args.anchors and Path(args.anchors).exists():
+        with open(args.anchors) as fh:
+            anchor_table = json.load(fh).get("alleles", {})
+        print(f"anchors: {len(anchor_table)} alleles from {args.anchors}")
+    else:
+        print(f"anchors: {args.anchors} not found -- pae_anchors_ic will be omitted")
     for fold in sorted(Path(args.root).iterdir()):
         pae_path = fold / "outputs" / "files" / "prediction" / "sample_0_pae.npz"
         if not pae_path.exists():
             continue
         allele, peptide, is_decoy = parse_name(fold.name)
-        feats = fold_features(load_pae(pae_path), len(peptide))
+        feats = fold_features(load_pae(pae_path), len(peptide),
+                              anchor_table.get(allele, {}).get("anchors"))
         if not feats:
             continue
         rows.append({"allele": allele, "peptide": peptide,
