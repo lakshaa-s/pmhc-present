@@ -101,16 +101,9 @@ def main() -> None:
 
     # data-rich alleles to subsample, spread across loci
     rich = sorted(peps_by_allele, key=lambda a: -len(peps_by_allele[a]))
-    chosen, seen = [], set()
-    for a in rich:
-        locus = a.split("*")[0]
-        if len(peps_by_allele[a]) >= max(args.sizes) * 2:
-            if seen.count(locus) if isinstance(seen, list) else True:
-                chosen.append(a)
-        if len(chosen) >= args.n_test:
-            break
+    chosen = [a for a in rich
+              if len(peps_by_allele[a]) >= max(args.sizes) * 2][:args.n_test]
 
-    obs_map = dict(zip(obs.allele, obs.nn_dist))
     rows = []
 
     print(f"{'allele':<14} {'full n':>7} {'full nn':>9} " +
@@ -147,7 +140,7 @@ def main() -> None:
               f"{g.inflation.max():>9.4f}")
 
     sparse = obs.nsmallest(10, "n_peptides")
-    print(f"\nThe sparse alleles this is meant to mimic (n and observed nn_dist):")
+    print("\nThe sparse alleles this is meant to mimic (n and observed nn_dist):")
     print(sparse[["allele", "n_peptides", "nn_dist", "auroc"]].to_string(index=False))
 
     small = [s for s in args.sizes if s <= 400]
