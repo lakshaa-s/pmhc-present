@@ -158,7 +158,11 @@ def hamming_cluster(peptides, alleles=None, identity_threshold=0.8):
 
     offset = 0
     for idxs in by_allele.values():
-        uniq = list({peptides[i] for i in idxs})
+        # sorted(), not list(): set iteration order over strings varies with
+        # PYTHONHASHSEED, and greedy single-linkage is order-dependent, so an
+        # unsorted set gives different CLUSTERS -- not just different ids --
+        # on every run, seed notwithstanding.
+        uniq = sorted({peptides[i] for i in idxs})
         cid_of = _cluster_unique_peptides(uniq, identity_threshold)
         local_max = max(cid_of.values()) if cid_of else -1
         for i in idxs:
