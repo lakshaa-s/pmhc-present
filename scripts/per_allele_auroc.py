@@ -6,7 +6,8 @@ computes AUROC separately for each allele — giving the full 123-point distribu
 plus a per-bin summary. Writes a CSV (allele, n, n_pos, auroc, peptide_count, bin)
 and prints a summary.
 
-Reuses the same split as training so the val set matches the baseline's.
+Reads the validation split from disk (scripts/make_split.py) so the val set is
+exactly the one the model was trained against.
 """
 
 from __future__ import annotations
@@ -19,20 +20,21 @@ import pandas as pd
 import torch
 from sklearn.metrics import roc_auc_score
 
-from pmhcpresent.eval.splits import hamming_cluster
 from pmhcpresent.eval.stratified import assign_frequency_bins
 from pmhcpresent.io.pseudoseq import load_pseudosequences_json
 from pmhcpresent.models.nn import NetConfig, PresentationNet
 from pmhcpresent.train import PeptideMHCDataset, TrainConfig
 
 
-def make_split(df, allele_col, peptide_col, frac_val=0.2, seed=42):
-    clusters = hamming_cluster(df[peptide_col].tolist(), df[allele_col].tolist())
-    rng = np.random.default_rng(seed)
-    uniq = np.unique(clusters)
-    n_val = max(1, round(len(uniq) * frac_val))
-    val_clusters = set(rng.choice(uniq, size=n_val, replace=False))
-    return np.array([c in val_clusters for c in clusters])
+def load_val_pairs(path):
+    """(allele, peptide) pairs on the validation side, from scripts/make_split.py.
+
+    Read from disk, never recomputed: this script loads a model trained elsewhere,
+    so a locally-derived split would evaluate against peptides the model may have
+    trained on.
+    """
+    d = pd.read_csv(path)
+    return set(zip(d["allele"], d["peptide"]))
 
 
 def main():
@@ -51,6 +53,8 @@ def main():
     ap.add_argument("--min-pos", type=int, default=10,
                     help="skip alleles with fewer than this many positive val rows "
                          "(AUROC unstable below this)")
+    ap.add_argument("--split", default="data/processed/split_val.csv",
+                    help="validation pairs from scripts/make_split.py")
     ap.add_argument("--out", default="results/per_allele_auroc.csv")
     args = ap.parse_args()
 
@@ -61,8 +65,13 @@ def main():
     # per-allele positive counts (for binning), same axis as training
     pos_counts = df[df[args.label_col] == 1].groupby(args.allele_col).size()
 
-    print("Rebuilding the split (same seed as training)...")
-    is_val = make_split(df, args.allele_col, args.peptide_col)
+    print(f"Loading validation split from {args.split} ...")
+    val_pairs = load_val_pairs(args.split)
+    is_val = np.array([(a, pep) in val_pairs for a, pep
+                       in zip(df[args.allele_col], df[args.peptide_col])])
+    if not is_val.any():
+        raise SystemExit("No rows matched the split file -- check allele naming.")
+    print(f"  {int(is_val.sum())} validation rows")
     df_val = df[is_val].reset_index(drop=True)
 
     print(f"Loading model from {args.model} ...")
@@ -87,7 +96,7 @@ def main():
         try:
             from pmhcpresent.train import predict_proba
             probs = predict_proba(model, val_ds, TrainConfig())
-        except Exception:
+        except (ImportError, AttributeError, TypeError):
             # generic fallback: iterate the dataset's tensors
             loader = torch.utils.data.DataLoader(val_ds, batch_size=512)
             for batch in loader:
