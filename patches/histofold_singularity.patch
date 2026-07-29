@@ -1,0 +1,19 @@
+diff --git a/run_msa_predictions.py b/run_msa_predictions.py
+index 960e086..a667706 100644
+--- a/run_msa_predictions.py
++++ b/run_msa_predictions.py
+@@ -191,7 +191,13 @@ def run_predictions(structure_set, gpu_number, prediction_filename):
+                         gpu_field = "--gpus=all"
+                     else:
+                         gpu_field = f"--gpus=\"device={gpu_number}\""
+-                    colabfold_command = f"docker run --user $(id -u) -ti --rm {gpu_field} -v {config['AF_WEIGHTS_FOLDER']}:/cache:rw -v $(pwd):/work:rw {config['CONTAINER_IMAGE']} colabfold_batch {config['COLABFOLD_OPTIONS']} {docker_a3m_filepath} {docker_output_folder}"
++                    runtime = config.get('CONTAINER_RUNTIME', 'docker')
++                    if runtime == 'singularity':
++                        # Singularity/Apptainer: rootless, so no --user; -B for binds,
++                        # --nv for GPU. CONTAINER_IMAGE is a local .sif path.
++                        colabfold_command = f"singularity exec --nv -B {config['AF_WEIGHTS_FOLDER']}:/cache:rw -B $(pwd):/work:rw {config['CONTAINER_IMAGE']} colabfold_batch {config['COLABFOLD_OPTIONS']} {docker_a3m_filepath} {docker_output_folder}"
++                    else:
++                        colabfold_command = f"docker run --user $(id -u) -ti --rm {gpu_field} -v {config['AF_WEIGHTS_FOLDER']}:/cache:rw -v $(pwd):/work:rw {config['CONTAINER_IMAGE']} colabfold_batch {config['COLABFOLD_OPTIONS']} {docker_a3m_filepath} {docker_output_folder}"
+                     
+                     os.system(colabfold_command)
+ 

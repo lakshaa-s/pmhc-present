@@ -1,0 +1,5 @@
+PROJECT_FOLDER = '/home/lsrishankar/pmhc-present/third_party/HISTOFold'
+AF_WEIGHTS_FOLDER = '/home/lsrishankar/colabfold_cache'
+CONTAINER_IMAGE = '/home/lsrishankar/pmhc-present/third_party/colabfold_1.5.5-cuda11.8.0.sif'
+CONTAINER_RUNTIME = 'singularity'
+GPUS = ''
