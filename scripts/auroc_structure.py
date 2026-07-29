@@ -61,6 +61,7 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pae", help="output of analyse_pae.py")
     ap.add_argument("--geometry", help="output of extract_geometry.py")
+    ap.add_argument("--sequence-csv")
     ap.add_argument("--out", default="structure_auroc.csv")
     args = ap.parse_args()
 
@@ -112,10 +113,18 @@ def main():
 
     best = res[(res.scope == "pooled")].sort_values("auroc", ascending=False).iloc[0]
     print(f"\nbest pooled feature: {best.feature} (AUROC {best.auroc:.3f})")
-    print("Sequence baseline on THIS fold set (val-only, anchor-matched decoys):")
-    print("  pooled 0.794 | A*02:01 0.694  B*07:02 1.000  B*27:05 0.972"
-          "  C*15:05 0.556  C*16:02 0.528")
-    print("  (0.97 is the full-test-set figure vs pooled negatives -- not comparable here.)")
+    if args.sequence_csv:
+        sq = pd.read_csv(args.sequence_csv)
+        print(f"\nSequence model on THIS fold set ({args.sequence_csv}):")
+        print(f"  pooled         {roc_auc_score(sq.label, sq.score):.3f}  (n={len(sq)})")
+        for a, g in sq.groupby("allele"):
+            if g.label.nunique() > 1:
+                print(f"  {a:<14} {roc_auc_score(g.label, g.score):.3f}  (n={len(g)})")
+        if "in_train" in sq.columns and sq.in_train.any():
+            print(f"  WARNING: {int(sq.in_train.sum())}/{len(sq)} pairs seen in training")
+    else:
+        print("\nNo --sequence-csv given; run score_sequence_on_foldset.py on this "
+              "same fold set for a comparable baseline.")
     print(f"Wrote {args.out}")
 
 
