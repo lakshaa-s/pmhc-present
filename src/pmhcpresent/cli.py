@@ -77,12 +77,40 @@ def _cmd_train(args) -> int:
         label_col=args.label_col, stratum_col="_stratum",
     )
 
-    # cluster-based holdout so similar peptides don't leak across the split
-    clusters = hamming_cluster(ds.peptides, ds.alleles, identity_threshold=args.cluster_threshold)
-    rng = np.random.default_rng(42)
-    uniq = np.unique(clusters)
-    val_clusters = set(rng.choice(uniq, size=max(1, len(uniq) // 5), replace=False))
-    is_val = np.array([c in val_clusters for c in clusters])
+    # Validation split: read from disk when --split is given, so training uses
+    # exactly the split every downstream script reads. Recomputing it here is what
+    # allowed the model to be trained against one split and evaluated against
+    # another -- see scripts/make_split.py for the full explanation.
+    if getattr(args, "split", None):
+        import pandas as pd
+
+        val_pairs = set(
+            zip(*pd.read_csv(args.split)[["allele", "peptide"]].values.T)
+        )
+        # Keyed on ds.alleles/ds.peptides rather than the dataframe: from_frame
+        # can drop rows with no pseudosequence, and a mask built from df would
+        # then be silently misaligned with ds.
+        is_val = np.array(
+            [(a, pep) in val_pairs for a, pep in zip(ds.alleles, ds.peptides)]
+        )
+        n_val = int(is_val.sum())
+        if n_val == 0:
+            raise SystemExit(
+                f"No rows matched {args.split}. Check allele naming matches."
+            )
+        print(f"split loaded from {args.split}: "
+              f"{n_val} val rows ({n_val / len(is_val):.1%})")
+    else:
+        print("WARNING: no --split given, so the holdout is computed here. That is "
+              "a fresh draw no other script can reproduce -- prefer "
+              "scripts/make_split.py and pass --split.")
+        clusters = hamming_cluster(
+            ds.peptides, ds.alleles, identity_threshold=args.cluster_threshold
+        )
+        rng = np.random.default_rng(42)
+        uniq = np.unique(clusters)
+        val_clusters = set(rng.choice(uniq, size=max(1, len(uniq) // 5), replace=False))
+        is_val = np.array([c in val_clusters for c in clusters])
 
     def subset(mask):
         idx = np.where(mask)[0]
@@ -147,7 +175,12 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--count-labels", nargs="+",
                    default=["rare", "low", "medium", "high", "very_high"],
                    help="labels for the count bins (len == len(count-bins) - 1)")
-    t.add_argument("--cluster-threshold", type=float, default=0.8)
+    t.add_argument("--split",
+                   help="CSV of validation (allele, peptide) pairs from "
+                        "scripts/make_split.py. Strongly preferred: without it "
+                        "the holdout is a fresh draw nothing else can reproduce.")
+    t.add_argument("--cluster-threshold", type=float, default=0.8,
+                   help="only used when --split is omitted")
     t.add_argument("--epochs", type=int, default=50)
     t.add_argument("--batch-size", type=int, default=256)
     t.add_argument("--save", help="path to save trained weights (.pt)")
