@@ -92,10 +92,24 @@ def main() -> None:
     ap.add_argument("--out", default="data/processed/pseudoseq_vs_motif.csv")
     args = ap.parse_args()
 
+    def unslug(slug: str) -> str:
+        """hla_c_01_02 -> HLA-C*01:02"""
+        b = slug.split("_")
+        if len(b) < 4:
+            return slug
+        return f"HLA-{b[1].upper()}*{b[2]}:{b[3]}"
+
     pseudo: dict[str, str] = {}
     for path in args.pseudoseq:
         with open(path) as fh:
-            pseudo.update(json.load(fh))
+            raw = json.load(fh)
+        for slug, rec in raw.items():
+            if isinstance(rec, dict):
+                seq = rec.get("pocket_pseudosequence")
+            else:
+                seq = rec
+            if seq:
+                pseudo[unslug(slug)] = seq
 
     d = pd.read_csv(args.distinctiveness)
     have = [a for a in d.allele if a in pseudo]
