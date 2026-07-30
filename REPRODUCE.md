@@ -725,3 +725,118 @@ Three issues found in HISTOFold, none patched yet:
 `analyse_pae.py`. Two differences it handles: PAE is JSON rather than
 `sample_0_pae.npz`, and HISTOFold folder names carry no binder/decoy tag, so
 labels come from the fold-set CSV.
+
+## 30 July — bootstrap CIs, and where structural confidence lives
+
+### Bootstrap confidence intervals
+
+`scripts/bootstrap_auroc.py`, 2000 resamples over the 144 complexes, all models
+aligned on the same set.
+
+| model | pooled AUROC | 95% CI |
+|---|---|---|
+| sequence (ours) | 0.921 | [0.872, 0.957] |
+| MHCflurry affinity | 0.911 | [0.857, 0.954] |
+| MHCflurry presentation | 0.841 | [0.771, 0.901] |
+| AF2 `pae_anchors` | 0.782 | [0.705, 0.852] |
+| Boltz `pae_anchors` | 0.738 | [0.653, 0.819] |
+| ESMFold2 `pae_anchors` | 0.689 | [0.601, 0.774] |
+
+**Paired differences vs sequence**, bootstrapped on the same complexes — the
+headline RQ1 result:
+
+- ESMFold2: +0.232 [0.151, 0.315] — differs
+- Boltz: +0.183 [0.099, 0.269] — differs
+- AF2: +0.139 [0.062, 0.218] — differs
+- MHCflurry presentation: +0.079 [0.024, 0.140] — differs
+- MHCflurry affinity: +0.009 [-0.038, 0.061] — **does not differ**
+
+So sequence significantly outperforms structural confidence across three
+independent folding architectures, and our model is statistically
+indistinguishable from MHCflurry's affinity predictor.
+
+**Median per-allele CI width 0.325** (pooled: 0.139). HLA-C\*16:02 spanning
+0.576-0.944 across architectures sits inside a single 0.33-wide interval, so the
+cross-model disagreement is exactly what sampling noise at n=24 predicts. Quote
+this alongside any per-allele table.
+
+**Correction to the 29 July note.** The presentation-vs-affinity distinction is
+weaker than first stated. Pooled they differ, but per allele the intervals overlap
+throughout — C\*03:04 is 0.87 [0.69, 0.99] presentation against 0.99 [0.94, 1.00]
+affinity. The training-data-type hypothesis is suggestive, not established, and
+needs more alleles or a different test before it can carry weight.
+
+### Global confidence is uninformative; localised confidence is not
+
+`scripts/extract_confidence.py`. The earlier claim that ipTM and pLDDT carry no
+binder/decoy signal was made on the 60-complex easy-decoy set at n=6, before the
+split fix. Retested on fold set v2 across all three architectures, it holds for
+*global* metrics and fails for localised ones.
+
+| model | best global | best localised |
+|---|---|---|
+| ESMFold2 | ipTM 0.609 | ipTM peptide→MHC chain pair **0.653** |
+| Boltz | PDE 0.610 | interface PDE **0.661** |
+| AF2 | pLDDT 0.624 | peptide-region pLDDT **0.753** |
+
+Boltz gives the cleanest version, since both comparisons are within a single
+forward pass: interface pLDDT 0.564 vs global 0.532, interface PDE 0.661 vs global
+0.610.
+
+Full ESMFold2 table: ipTM 0.609, pTM 0.571, complex pLDDT 0.598, ipTM MHC→pep
+0.621, **ipTM pep→MHC 0.653**, ipTM pep–pep 0.648. Whole-complex ipTM has a
+binder/decoy mean gap of 0.0014; the peptide→MHC pair has 0.0556, forty times
+larger.
+
+Full AF2 table: ipTM 0.523, pTM 0.530, complex pLDDT 0.624, **peptide pLDDT
+0.753**. Whole-complex ipTM is indistinguishable from chance.
+
+**Statement:** structural confidence carries binder/decoy signal, but only when
+localised to the peptide or its interface. Global confidence is dominated by the
+MHC fold, which is predicted well regardless of what occupies the groove. Four
+distinct quantities, three architectures, one direction — and it converges with
+the PAE result (whole-interface 0.651-0.739, anchor-localised 0.689-0.782).
+
+This explains *why* anchor-localised PAE worked, which was previously an
+observation without a mechanism. It also supersedes the flat "confidence is
+uninformative" claim: that was true of whole-complex ipTM specifically, not of
+confidence generally.
+
+RQ1 is unaffected — the best structural feature anywhere remains AF2
+`pae_anchors` at 0.782, against sequence at 0.921.
+
+Note: `auroc_structure.py`'s per-allele table only prints `pae_anchors` and
+`n_contacts`, so confidence runs show empty per-allele rows. The values are in the
+output CSV.
+
+### MixMHCpred cannot be benchmarked on this fold set
+
+`scripts/score_mixmhcpred.py` gives 0.999 pooled, 1.000 on every allele. This is
+circular, not a result.
+
+The fold set is selected by MHC Motif Atlas PWM score — binders from the top
+decile, decoys below the 25th percentile — and MixMHCpred is trained on Gfeller
+lab immunopeptidomics, the same data lineage as the Atlas. Three confirmations:
+
+- **PWM score alone gives AUROC 1.000** on this set
+- Spearman(PWM score, MixMHCpred score) = 0.909
+- class score distributions barely overlap: binders -0.101 to -0.001, decoys
+  -54.7 to -0.048
+
+So the set is separable by construction on the criterion used to build it, and any
+predictor sharing that lineage is disqualified. MHCflurry remains valid — different
+curation (IEDB + SysteMHC).
+
+Two consequences worth carrying into the write-up. First, this belongs in
+Limitations as a stated design constraint. Second, it reframes RQ1: "structure
+reaches 0.78 where a PWM reaches 1.00" says the task is not intrinsically hard, it
+is hard for models that do not read the motif the way the selection did.
+
+Also note MixMHCpred has no model for HLA-C\*03:04 and silently substitutes
+C\*03:03 (its "Closest Allele" header line reports this; distance 0.0). Our own
+motif analysis found that pair to be the closest in the 123-allele panel, JSD
+0.0048, so the substitution is reasonable — but it should be reported.
+
+**Further work:** a PWM-free fold set — random held-out ligands as binders, random
+non-observed peptides as decoys — would let motif-based predictors compete honestly
+and would put every number on a footing the selection did not shape.
