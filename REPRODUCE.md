@@ -623,3 +623,105 @@ which reflects proteasomal cleavage and TAP transport as well as groove binding.
 hard-decoy set it gave 0.628 pooled vs 0.630 for `pae_anchors` — but +0.083 on C\*16:02,
 the only allele where the position sets differ. Underpowered rather than null; a proper
 test needs alleles whose anchor sets differ substantially.
+
+## 29-30 July — RQ1 across three folding architectures
+
+All three structural models scored on `fold_sets/fold_set_v2.csv` (144 complexes,
+6 alleles × 12 binders × 12 anchor-matched decoys), against the sequence model
+retrained on the reproducible split (`models/rq1_baseline_split_v2.pt`).
+
+| | ESMFold2 | Boltz-2.1 | AF2 (HISTOFold) | sequence |
+|---|---|---|---|---|
+| **pooled, best feature** | 0.734 | 0.738 | **0.782** | **0.921** |
+| `pae_pep_mhc` | 0.651 | 0.698 | 0.739 | — |
+| `pae_anchor2` | **0.734** | 0.675 | 0.779 | — |
+| `pae_anchors` | 0.689 | **0.738** | **0.782** | — |
+| `pae_anchors_ic` | 0.665 | 0.723 | 0.723 | — |
+
+**RQ1: negative.** Three independently developed folding models give 0.734, 0.738
+and 0.782. Structural confidence does not outperform the sequence model at 0.921.
+The replication across architectures is the strength of this result.
+
+This is consistent with the literature. Motmaen et al. 2023 (PNAS) note that the
+most successful current methods use sequence alone, and that off-the-shelf
+AlphaFold performs significantly worse than a version fine-tuned on binding data;
+their fine-tuned model reached AUROC 0.97 on Class I, described as competitive
+with NetMHCpan rather than better. We are measuring the off-the-shelf
+confidence-metric configuration, which is the weak one.
+
+### Per-allele structural AUROCs do not reproduce across architectures
+
+`pae_anchors`, same 144 complexes, 12 binders / 12 decoys per allele:
+
+| allele | ESMFold2 | Boltz | AF2 | sequence |
+|---|---|---|---|---|
+| HLA-A\*02:01 | 0.549 | 0.764 | 0.771 | 0.979 |
+| HLA-B\*07:02 | 0.764 | 0.833 | 0.903 | 1.000 |
+| HLA-B\*27:05 | 0.792 | 0.854 | 0.708 | 1.000 |
+| HLA-C\*03:04 | 0.937 | 0.750 | 0.854 | 0.903 |
+| HLA-C\*15:05 | 0.799 | 0.722 | 0.764 | 0.806 |
+| HLA-C\*16:02 | 0.660 | 0.576 | 0.944 | 0.861 |
+
+**At n=24 per allele, per-allele structural AUROCs are not reproducible across
+folding models.** HLA-C\*16:02 spans 0.576 to 0.944 on identical complexes;
+C\*03:04 spans 0.750 to 0.937. Rank order across the six alleles is essentially
+uncorrelated between ESMFold2 and Boltz.
+
+This is a measured finding rather than a caveat, and it supersedes any per-allele
+structural claim made earlier — including the C\*03:04 result (0.937 on ESMFold2
+vs sequence 0.903), which looked like structure beating sequence on the data-rich
+HLA-C control until Boltz gave 0.750 for the same complexes.
+
+Only the pooled figures should be interpreted.
+
+### Leakage: the precise statement
+
+"0% leakage" as reported by `score_sequence_on_foldset.py` means no fold-set
+(allele, peptide) *pair* appears in the training split. That is true for all 144.
+
+A weaker condition does not hold, and cannot: 98 of 138 unique fold-set peptides
+appear in training paired with a *different* allele. This is unavoidable, because
+hard decoys are by construction real eluted ligands of other alleles.
+`hamming_cluster` groups by allele before clustering, so the same peptide under
+two alleles gets different cluster ids and can straddle the split.
+
+Measured effect on the sequence model:
+
+- peptides seen in training under another allele: n=54, AUROC **0.887**
+- peptides not seen at all: n=90, AUROC **0.951**
+
+Cross-allele exposure therefore *depresses* the sequence baseline rather than
+inflating it. The mechanism: 21 of 72 decoys were seen elsewhere as positives, so
+the model scores them high, which hurts discrimination. 0.921 is if anything a
+slight underestimate, and the folding models are unaffected either way — they
+never saw the atlas.
+
+### AF2 via HISTOFold — operational notes
+
+Runs through Singularity rather than Docker (Docker is not installed on Beta and
+should not be, on a shared machine). Setup:
+
+    singularity pull docker://ghcr.io/sokrypton/colabfold:1.5.5-cuda11.8.0
+    singularity run -B ~/colabfold_cache:/cache colabfold_1.5.5-cuda11.8.0.sif \
+        python -m colabfold.download          # 7.3 GB, ~5.3 GB on disk
+
+`patches/histofold_singularity.patch` adds a `CONTAINER_RUNTIME` config key;
+`patches/histofold_local.toml.example` is the working config. Both to send
+upstream.
+
+Three issues found in HISTOFold, none patched yet:
+
+1. `os.system`'s return code is never checked, so a failed container run is
+   logged `status=done` and permanently skipped on retry. Observed with
+   `elapsed_time` 0.0025s recorded as done.
+2. The completeness check expects exactly 26 output files; ColabFold 1.5.5 with
+   the default options writes 24, so it never fires.
+3. Consequence of (1) and (2): one complex (`hla_b_27_05_lqdvidlrl`) died during
+   model 3 of 5, wrote 9 of 24 files, and was logged as complete. Found only by
+   counting files per directory. **Always run the directory-count check before
+   analysing a HISTOFold batch.**
+
+`scripts/analyse_pae_af2.py` reads ColabFold output into the same schema as
+`analyse_pae.py`. Two differences it handles: PAE is JSON rather than
+`sample_0_pae.npz`, and HISTOFold folder names carry no binder/decoy tag, so
+labels come from the fold-set CSV.
