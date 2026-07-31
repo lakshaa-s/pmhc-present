@@ -1,0 +1,25 @@
+model,scope,allele,auroc,ci_lo,ci_hi,n
+sequence only,pooled,ALL,0.8975694444444444,0.8432839008817269,0.9465630334809271,144
+structure only,pooled,ALL,0.7411265432098766,0.6605908982629334,0.817073700135998,144
+sequence + structure,pooled,ALL,0.9039351851851852,0.8496987692538049,0.9498460496383201,144
+sequence + structure minus sequence only,paired_diff,ALL,0.006365740740740811,-0.043349953894813345,0.056454415244737766,144
+sequence + structure minus structure only,paired_diff,ALL,0.16280864197530864,0.10439192362396348,0.2267827867866567,144
+sequence only minus structure only,paired_diff,ALL,0.15644290123456783,0.06977871916304758,0.2446951642599139,144
+sequence only,per_allele,HLA-A*02:01,0.9791666666666666,,,24
+structure only,per_allele,HLA-A*02:01,0.7430555555555556,,,24
+sequence + structure,per_allele,HLA-A*02:01,0.8958333333333333,,,24
+sequence only,per_allele,HLA-B*07:02,1.0,,,24
+structure only,per_allele,HLA-B*07:02,0.8611111111111112,,,24
+sequence + structure,per_allele,HLA-B*07:02,0.9791666666666666,,,24
+sequence only,per_allele,HLA-B*27:05,1.0,,,24
+structure only,per_allele,HLA-B*27:05,0.6319444444444444,,,24
+sequence + structure,per_allele,HLA-B*27:05,0.875,,,24
+sequence only,per_allele,HLA-C*03:04,0.9027777777777778,,,24
+structure only,per_allele,HLA-C*03:04,0.8194444444444444,,,24
+sequence + structure,per_allele,HLA-C*03:04,0.9027777777777778,,,24
+sequence only,per_allele,HLA-C*15:05,0.8055555555555556,,,24
+structure only,per_allele,HLA-C*15:05,0.7916666666666667,,,24
+sequence + structure,per_allele,HLA-C*15:05,0.9305555555555556,,,24
+sequence only,per_allele,HLA-C*16:02,0.8611111111111112,,,24
+structure only,per_allele,HLA-C*16:02,0.9722222222222222,,,24
+sequence + structure,per_allele,HLA-C*16:02,0.9583333333333334,,,24
