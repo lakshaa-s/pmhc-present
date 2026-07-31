@@ -166,7 +166,7 @@ def main():
             continue
 
         results = res if isinstance(res, list) else [res]
-        write_outputs(out_dir, results, getattr(results[0], "complexes", None), args.model)
+        write_outputs(out_dir, results, [r.complex for r in results if getattr(r, "complex", None) is not None], args.model)
         m = results[0]
         print(f"    ok  iptm={float(m.iptm):.4f}  ptm={float(m.ptm):.4f}  "
               f"plddt={float(np.mean(np.asarray(m.plddt))):.4f}")
