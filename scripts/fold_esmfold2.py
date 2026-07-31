@@ -83,10 +83,11 @@ def write_outputs(out_dir: Path, results, structures, model_name):
         np.savez_compressed(pred_dir / "embeddings.npz", **emb)
 
     if structures is not None:
-        try:
-            structures[0].to_cif(str(pred_dir / "sample_0_predicted_structure.cif"))
-        except Exception as e:  # noqa: BLE001 - structure writing is best-effort
-            print(f"    (could not write cif: {e})")
+        # to_mmcif() returns a string; it does not take a path. Not wrapped in a
+        # try/except: a silent handler here hid two separate bugs (wrong attribute
+        # name, then wrong call signature), so a failure should be loud.
+        (pred_dir / "sample_0_predicted_structure.cif").write_text(
+            structures[0].to_mmcif())
 
 
 def main():
