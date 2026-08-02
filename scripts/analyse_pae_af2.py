@@ -135,10 +135,20 @@ def main() -> None:
     for fold in sorted(Path(args.root).iterdir()):
         if not fold.is_dir():
             continue
-        if fold.name not in fold_set:
+        if fold.name in fold_set:
+            allele, peptide, is_decoy = fold_set[fold.name]
+        elif "__" in fold.name:
+            # HISTOFold v3 writes {tag}__{allele_slug}__{peptide}, unlike v2's
+            # {allele_slug}_{peptide}; the tag is present so no lookup is needed
+            parts = fold.name.split("__")
+            tag, slug, pep = parts[0], parts[1], parts[-1]
+            allele = slug_to_allele(slug)
+            is_decoy = tag in ("decoy", "hard")
+            key = f"{slug}_{pep.lower()}"
+            peptide = fold_set[key][1] if key in fold_set else pep.upper()
+        else:
             unmatched.append(fold.name)
             continue
-        allele, peptide, is_decoy = fold_set[fold.name]
         pae = load_pae(fold)
         if pae is None:
             missing.append(fold.name)
