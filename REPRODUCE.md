@@ -1,4 +1,4 @@
-## 30-31 July — RQ1 completed, RQ2 answered, and two benchmark limitations
+## 30-31 July — RQ1 completed and RQ2 answered
 
 ### Bootstrap confidence intervals
 
@@ -180,6 +180,8 @@ reported baselines the gains are near-identical (+0.017, +0.016). Cite as
 "suggestive" rather than established. Controlling for the ceiling effect is not
 something that literature does, and doing it properly would be a contribution.
 
+## 3 August — external baselines, benchmark circularity, and where the coverage gap actually is
+
 ### External sequence baselines, and why the comparison is compromised
 
 Four external predictors on fold set v2:
@@ -300,6 +302,85 @@ specific to deliberately generated data. It also explains why NetMHCpan and
 MixMHCpred substitute neighbours for HLA-C alleles, and why MHCflurry's affinity
 and presentation predictors behave differently on HLA-C.
 
+### The gap is in negatives specifically (IEDB, primary source)
+
+The section above uses MHCflurry's curated dataset. Going to IEDB directly — every
+published pMHC assay rather than one curation — sharpens the finding and corrects
+its emphasis.
+
+Source: `mhc_ligand_full.zip` from iedb.org, 5,770,781 assay rows, 303 HLA alleles
+with at least one 9mer. Summary in `data/processed/iedb_coverage.json`.
+
+**HLA-C is not positive-poor.** Distinct 9mers with a positive qualitative call:
+
+| allele | positives | negatives |
+|---|---|---|
+| HLA-A\*02:01 | 41,446 | 5,892 |
+| HLA-B\*07:02 | 14,236 | 2,665 |
+| HLA-C\*05:01 | 7,651 | 76 |
+| HLA-C\*12:02 | 7,027 | 3 |
+| HLA-C\*03:04 | 6,769 | 52 |
+| HLA-C\*16:01 | 3,466 | 0 |
+| HLA-C\*15:05 | 89 | 0 |
+| HLA-C\*16:02 | 10 | 0 |
+
+Several HLA-C alleles have thousands of known ligands, and the median positive
+count is higher for HLA-C than for HLA-A or HLA-B — consistent with HLA-C being
+well covered by mass spectrometry.
+
+**What is missing is experimentally determined non-binders.** Restricting to
+alleles with at least 100 positives, so barely-studied alleles do not distort the
+comparison:
+
+| locus | alleles | zero negatives | median negative:positive ratio |
+|---|---|---|---|
+| HLA-A | 44 | 11 (25%) | **0.166** |
+| HLA-B | 64 | 21 (33%) | **0.0084** |
+| HLA-C | 21 | 6 (29%) | **0.0074** |
+
+The zero-negative rate is comparable across loci, so the disparity is not about
+whether negatives exist at all — it is about the ratio. A studied HLA-A allele has
+roughly one negative per six positives; HLA-B and HLA-C have roughly one per 120.
+
+**The characterisation is therefore HLA-A versus everything else**, not HLA-C
+specifically. That corrects the emphasis of the MHCflurry-derived section above.
+Note that more HLA-B alleles have been studied (64) than HLA-A (44), so this is not
+about attention to loci in general, but specifically about which alleles received
+the assays that produce negatives.
+
+**Mechanism.** Purified-MHC and cellular binding assays measure whether a chosen
+peptide binds and therefore generate negatives. Mass spectrometry elutes what a
+cell presents and by construction yields positives only. The binding assays were
+developed for and applied predominantly to HLA-A\*02:01 and its relatives, driven
+by vaccine and immunotherapy work; other alleles have been characterised mainly by
+immunopeptidomics.
+
+**Consequence for this project.** The anchor-matched constructed decoys in fold set
+v2 were a necessity, not a convenience. For HLA-C\*15:05 and HLA-C\*16:02 there are
+zero experimentally determined non-binders in the whole of IEDB, so no benchmark
+for those alleles can use real negatives. This is also why
+`select_fold_set_affinity.py` could build a PWM-free fold set for HLA-A and HLA-B
+but not for HLA-C. It follows that the equity question cannot currently be answered
+with experimentally grounded negatives for the rare HLA-C alleles by anyone, with
+any method — a statement about the state of the field rather than a limitation of
+this work.
+
+**Caveat on the extracted file.** `iedb_coverage.json` has four fields per allele:
+`pos`, `neg`, `ms`, `binding`. Only `pos` and `neg` are trustworthy. The method
+classification used `('mass spectrometry' in m and ms or bind)`, which never
+selects `ms` because an empty `defaultdict` is falsy, so every peptide was counted
+as `binding` and `ms` is zero throughout. The positive and negative counts were
+verified against an independent pass over the same file and match exactly.
+
+Column indices in the IEDB export (two-row header, names from row 2): peptide 11,
+assay method 90, qualitative measurement 94, measurement inequality 95,
+quantitative measurement 96, MHC allele 107.
+
+The download is 284 MB compressed and needs several GB to process. It was extracted
+on a CS lab machine (`gadwall-l`) using local `/tmp`, since Beta's `/home` was at
+99% and the CS networked home has a 10 GB quota. Only the 24 KB summary was copied
+back.
+
 ### Panel selection: two failed designs before a workable one
 
 `scripts/select_allele_panel.py`. Recorded because the failures are informative.
@@ -317,7 +398,7 @@ at the low end among eligible alleles (1.47-3.57 bits). All strata filled — bu
 nine selected alleles spanned only 0.964-0.983 in AUROC. That was a *selection
 artefact*: taking `nlargest(held_out)` within each IC stratum favours data-rich
 alleles, which cluster at high AUROC. The eligible pool was fine; the sampling was
-not. (I initially read this as the IC-AUROC correlation breaking down among
+not. (This was initially misread as the IC-AUROC correlation breaking down among
 data-rich alleles, which was wrong — the correlation is stable at 0.660 / 0.677 /
 0.666 / 0.659 across min-candidate thresholds of 0 / 40 / 80 / 120.)
 
@@ -353,4 +434,5 @@ bound repertoires, which is a third basis. Not folding until this is settled.
   per-directory file count before analysing a HISTOFold batch.**
 - Beta's GPU is shared with two other users and `/home` reached 100% during this
   work. CS lab machines (`*-l` via `knuckles.cs.ucl.ac.uk`) offer RTX 3090 Ti cards
-  with networked home directories, so a single setup serves all of them.
+  with networked home directories, but those homes have a 10 GB quota — too small
+  for the ESMFold2 model cache. Local `/tmp` on each machine has several hundred GB.
