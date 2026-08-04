@@ -641,3 +641,93 @@ So AF3 stays evaluation-only and out of anything used for training.
   container as `/work/{item_path}`, where `/work` is the HISTOFold directory. The
   run then fails instantly for every complex — and, because of the `os.system` bug,
   logs all of them as done.
+
+  ### Why the panel cannot test the hypothesis it was built for
+
+The v4 panel was selected to test whether structural features contribute more for
+motif-isolated alleles. On the nine new alleles, and on all fifteen once the
+originals are included, the answer is a flat null:
+
+| relationship (n=15) | rho | p |
+|---|---|---|
+| nn_dist vs structural AUROC | -0.138 | 0.624 |
+| nn_dist vs (sequence - structure) gap | -0.050 | 0.859 |
+| nn_dist vs sequence AUROC | -0.222 | 0.426 |
+
+This is **not** evidence against the hypothesis. The benchmark cannot detect an
+effect of this size, and the arithmetic is worth setting out because it applies to
+every per-allele claim in this project.
+
+**The signal is small.** Across 123 alleles, per-allele validation-split AUROC has a
+standard deviation of **0.024** (range 0.859-0.999). That is the entire
+between-allele variation available to correlate against.
+
+**The measurement is noisy.** Fold-set AUROC is computed from 12 binders and 12
+decoys. The bootstrap gives a median per-allele CI width of 0.325, so a standard
+error near **0.075** — roughly three times the between-allele spread.
+
+With signal sd 0.024 and measurement noise 0.075, attenuation caps the observable
+correlation at around 0.3 even if the underlying relationship were perfect. The
+observed validation-split vs fold-set AUROC correlation is **+0.431 (p 0.108,
+n=15)**, which is at or above that ceiling — so the two measures are plausibly
+tracking the same quantity and the shortfall is measurement error, not a difference
+between the tasks.
+
+**Consequences.**
+
+1. The nn_dist nulls are uninformative rather than negative. Benny's hypothesis is
+   untested, not refuted.
+2. Detecting a between-allele effect would need hundreds of complexes per allele,
+   not 24 — roughly an order of magnitude more folding than this project has done.
+3. Every per-allele comparison here inherits the same limit: the C\*16:02 spread
+   across architectures (0.576-0.944), the RQ2 ceiling-effect correlations, and the
+   per-allele tables throughout. Pooled figures and within-allele paired
+   comparisons are unaffected.
+
+**A related trap, which caught this analysis before it was checked.** On the 15
+panel alleles, log10(peptide count) correlates with fold-set sequence AUROC at
+rho +0.564, p 0.028 — apparently supporting the equity claim that structure helps
+where training data is thin. Across all 123 alleles the same correlation is
+**-0.020, p 0.82**. The n=15 result is a sampling artefact: the panel was selected
+for motif isolation subject to a candidate floor, and two low-count alleles
+(C\*16:02 at 236 peptides, C\*15:05 at 215) anchor the bottom of the range. Do not
+report it.
+
+**What does hold, on the well-powered 123-allele analysis**, and which describes
+validation-split performance rather than fold-set performance:
+
+| predictor | rho vs per-allele AUROC | p |
+|---|---|---|
+| anchor information content | **+0.660** | 1.1e-16 |
+| motif nearest-neighbour distance | **-0.363** | 3.7e-05 |
+| log10(peptide count) | -0.020 | 0.82 |
+
+The motif-distance correlation is stable under thresholding on peptide count
+(-0.363 / -0.385 / -0.361 / -0.380 at thresholds 0 / 200 / 500 / 1000, n=123 down to
+88), so it is not confounded with sparsity.
+
+### Sequence baseline on fold set v4
+
+`results/sequence_v4.csv`. Pooled 0.930 (n=216), against AF2 `pae_anchors` 0.695
+raw and 0.832 per-allele z-scored.
+
+| allele | sequence | AF2 `pae_anchors` | gap |
+|---|---|---|---|
+| HLA-B\*15:18 | 1.000 | 0.819 | +0.181 |
+| HLA-B\*08:01 | 0.993 | 0.806 | +0.188 |
+| HLA-B\*39:06 | 0.986 | 0.875 | +0.111 |
+| HLA-B\*37:01 | 0.965 | 0.708 | +0.257 |
+| HLA-C\*08:01 | 0.965 | 0.764 | +0.201 |
+| HLA-B\*47:01 | 0.951 | 0.917 | +0.035 |
+| HLA-B\*15:03 | 0.903 | 0.854 | +0.049 |
+| HLA-A\*29:02 | 0.875 | 0.799 | +0.076 |
+| HLA-B\*73:01 | 0.875 | 0.757 | +0.118 |
+
+Sequence leads on every allele in this panel. Across all fifteen alleles the only
+two where structure wins are HLA-C\*16:02 (gap -0.090) and HLA-C\*15:05 (-0.014) —
+both from the v2 panel, and both the sparsest alleles in the study at 39 and 44
+held-out 9mers. They sit mid-range on motif isolation (0.113 and 0.074), so what
+distinguishes them is data scarcity rather than motif distinctiveness. Given the
+noise limit above, two alleles is not evidence, but it is the pattern the equity
+claim would predict and it is worth stating as an observation for future work with
+a properly powered design.
