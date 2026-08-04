@@ -1,5 +1,11 @@
 ## 30-31 July — RQ1 completed and RQ2 answered
 
+> **Read this first if you are looking at pooled structural AUROCs.** Every pooled
+> figure in this section understates the signal by roughly 0.05, for reasons set out
+> under "Per-allele scaling" in the 3-4 August section below. The per-allele figures
+> and all paired comparisons within a model are unaffected. Corrected values are
+> given there.
+
 ### Bootstrap confidence intervals
 
 `scripts/bootstrap_auroc.py`, 2000 resamples over the 144 complexes of fold set v2,
@@ -81,11 +87,9 @@ construction, so AF2 seats them in the groove; lacking correct non-anchor
 complementarity they may be modelled as compressed against the MHC surface, and
 Amber relaxation pushes atoms into contact regardless of whether the pose is right.
 
-**This completes RQ1's structural coverage.** Three feature categories on the same
-144 complexes: PAE 0.804, confidence 0.753, geometry 0.492, against sequence 0.921.
-Geometry is the only category computed from coordinates rather than from the
-model's self-assessment, so if fold quality carried binding signal this is where it
-would appear. It gives nothing.
+Geometry is the only feature category computed from coordinates rather than from
+the model's self-assessment, so if fold quality carried binding signal this is
+where it would appear. It gives nothing.
 
 ### Fold quality is not the structural ceiling
 
@@ -121,6 +125,13 @@ Four independent lines now support the conclusion:
 The limitation is in what the structural representations encode, not in how
 accurately the fold is predicted.
 
+A caveat on line 2, which Chris raised directly: whole-peptide RMSD against an
+experimental structure and binder/decoy discrimination are different quantities, and
+a model could place a peptide accurately while encoding nothing about whether it
+belongs in that groove. The observation is also three points, on different peptide
+sets, with our Boltz being 2.1 via API against his Boltz-2. Read it as evidence that
+the two are decoupled, not that worse structures cause better discrimination.
+
 ### AF2 with v3b MSAs
 
 Chris's P5-rebalanced MSAs, same 144 complexes, only the MSA changed.
@@ -134,8 +145,8 @@ Chris's P5-rebalanced MSAs, same 144 complexes, only the MSA changed.
 | `pae_anchors_ic` | 0.723 | 0.771 |
 
 Every feature improved, but the paired bootstrap difference is **-0.023
-[-0.088, +0.040]** — not distinguishable at n=144. Report the direction, not a
-claim of improvement.
+[-0.088, +0.040]** — not distinguishable at n=144. Report the direction as a trend,
+not a claim of improvement. (Chris's own reading: "you can say there is a trend".)
 
 Leakage: v3b is clean against the fold set (0 exact, 0 within two substitutions,
 630 MSA peptides vs our 138). v3a has one exact match (TSDKPGSPY under
@@ -145,9 +156,6 @@ neither sharing an allele, so minimal and conservative in direction.
 Also checked against PDB after Chris noted Boltz's recent training cutoff: **0 of
 138 fold-set peptides appear as a chain in `pdb_seqres`**, so structural leakage is
 ruled out for all three folding models.
-
-HISTOFold v3 changed its output directory naming from `{allele_slug}_{peptide}` to
-`{tag}__{allele_slug}__{peptide}`; `analyse_pae_af2.py` handles both.
 
 ### RQ2: no synergy, and the per-allele pattern is a ceiling effect
 
@@ -179,6 +187,29 @@ models with no confidence intervals and no significance test, and against their
 reported baselines the gains are near-identical (+0.017, +0.016). Cite as
 "suggestive" rather than established. Controlling for the ceiling effect is not
 something that literature does, and doing it properly would be a contribution.
+
+### AF2 learned representations
+
+`scripts/rq1_embeddings.py`. Refolded fold set v2 with
+`--save-single-representations`, giving a (382, 256) float16 array per model per
+complex. The peptide is the final 9 rows; mean-pooled, PCA fitted inside each fold,
+logistic regression with heavy L2, leave-one-allele-out.
+
+- mean-pooled: **0.834 [0.765, 0.891]**; vs `pae_anchors` +0.031 [-0.060, +0.115]
+  (does not differ); vs sequence -0.087 [-0.164, -0.014] (differs)
+- concat-pooled (2304 dims): 0.741, worse, as expected at n=144
+
+So the learned representations land in the same place as the confidence metrics.
+The folding model does not appear to encode binding information that its confidence
+outputs fail to expose — at least not information a linear classifier can extract
+from 144 samples.
+
+**RQ1's structural coverage is now four readouts of the same folds:** PAE 0.804,
+representations 0.834, confidence 0.753, geometry 0.492, against sequence 0.921.
+The negative result is not an artefact of reading the wrong output. The caveat is
+that 144 samples with leave-one-allele-out limits what a linear classifier can
+extract, so this shows the signal is not easily accessible rather than that it is
+absent — fine-tuning remains untested, and Motmaen et al. suggest it would do better.
 
 ## 3 August — external baselines, benchmark circularity, and where the coverage gap actually is
 
@@ -296,11 +327,13 @@ make its AUROC mean something different from the others'.
 
 **Mechanism:** mass spectrometry is untargeted and captures whatever a cell line
 presents; affinity assays require deliberate selection of peptide-allele pairs, and
-those choices have followed research attention toward HLA-A. The coverage gap is
-therefore not a property of HLA-C biology, nor of data volume in general, but is
-specific to deliberately generated data. It also explains why NetMHCpan and
-MixMHCpred substitute neighbours for HLA-C alleles, and why MHCflurry's affinity
-and presentation predictors behave differently on HLA-C.
+those choices have followed research attention toward HLA-A.
+
+An open question from Benny, worth pursuing: does this say anything about which HLA
+is dominant in a cell? HLA-C is expressed at roughly ten-fold lower surface levels
+than HLA-A and HLA-B, so the fact that mass spectrometry still covers it comparably
+needs explaining — either immunopeptidomics protocols compensate, or the read of the
+coverage needs qualifying. Checkable in the literature and not yet done.
 
 ### The gap is in negatives specifically (IEDB, primary source)
 
@@ -365,6 +398,11 @@ with experimentally grounded negatives for the rare HLA-C alleles by anyone, wit
 any method — a statement about the state of the field rather than a limitation of
 this work.
 
+Chris's view on how to use this: "If there is not enough data on ancestrally diverse
+alleles then that should be called out explicitly in your write up. It is a proof
+that we need to generate more data about these alleles for the purpose of ML
+development."
+
 **Caveat on the extracted file.** `iedb_coverage.json` has four fields per allele:
 `pos`, `neg`, `ms`, `binding`. Only `pos` and `neg` are trustworthy. The method
 classification used `('mass spectrometry' in m and ms or bind)`, which never
@@ -381,15 +419,18 @@ on a CS lab machine (`gadwall-l`) using local `/tmp`, since Beta's `/home` was a
 99% and the CS networked home has a 10 GB quota. Only the 24 KB summary was copied
 back.
 
-### Panel selection: two failed designs before a workable one
+## 3-4 August — panel v4 by motif isolation, and a scaling artefact in every pooled figure
 
-`scripts/select_allele_panel.py`. Recorded because the failures are informative.
+### Panel design: three rejected criteria before the one both supervisors endorsed
+
+`scripts/select_allele_panel.py` (v1-v3) and `scripts/select_allele_panel_motif.py`
+(v4). The failures are recorded because each identifies a real property of the data.
 
 **v1, stratified on sequence AUROC over all alleles.** The bottom stratum came out
 empty. Among alleles with enough held-out 9mers for a canonical fold set (>=120),
 sequence AUROC spans only 0.922-0.999: every weak-performing allele is also
 data-sparse. **Weak performance and sparsity are confounded**, so the alleles the
-project most wants to characterise cannot be properly benchmarked. That is a
+project most wants to characterise cannot be given a fair fold set. That is a
 finding in its own right and constrains what any panel can demonstrate.
 
 **v2, stratified on anchor information content.** IC is the causal driver (rho 0.660
@@ -402,18 +443,173 @@ not. (This was initially misread as the IC-AUROC correlation breaking down among
 data-rich alleles, which was wrong — the correlation is stable at 0.660 / 0.677 /
 0.666 / 0.659 across min-candidate thresholds of 0 / 40 / 80 / 120.)
 
-**v3, stratified on sequence AUROC with IC spread within strata.** AUROC is the
-scarcer axis — only about a dozen eligible alleles below 0.945 — so it drives the
-strata, and a greedy max-min pick spreads IC within each. Result: 15 alleles
-spanning AUROC 0.859-0.993 and IC 1.47-3.57, comprising 6 HLA-C, 5 HLA-B, 4 HLA-A,
-including A\*30:01, A\*34:01, B\*81:01 and C\*17:01. Written to
-`fold_sets/panel_v3.txt`. 9 new alleles × 24 complexes = 216 folds.
+**v3, stratified on sequence AUROC with IC spread within strata.** Fixed the
+artefact and gave 15 alleles spanning AUROC 0.859-0.993 and IC 1.47-3.57, 6 HLA-C /
+5 HLA-B / 4 HLA-A. Written to `fold_sets/panel_v3.txt`. Not folded — the design
+question was put to both supervisors first.
 
-**Open question, raised with Benny and Chris:** the panel is selected on statistical
-properties rather than population carriage. For a project about ancestral diversity
-there is an argument for building it from AFND frequencies with statistical adequacy
-as a constraint instead. Chris selects his MSA alleles on cosine dissimilarity of
-bound repertoires, which is a third basis. Not folding until this is settled.
+**v4, stratified on motif isolation.** Both supervisors independently favoured this.
+Benny Chain: "this will test the influence of structural modelling on the most
+different alleles, which targets the objective of increasing the coverage of the HLA
+space. I don't think performance or data quality should be the primary criteria in
+the context of your project." Chris Thorpe selects his MSA alleles on cosine
+dissimilarity of bound repertoires and agreed.
+
+There is direct support from earlier work here: across 123 alleles, motif
+nearest-neighbour distance predicts per-allele AUROC (rho -0.363, p 3.7e-5) while
+pseudosequence distance does not (rho -0.021, p 0.82), and motif distance survives
+controlling for pseudosequence distance (-0.417).
+
+`select_allele_panel_motif.py` stratifies on Jensen-Shannon nearest-neighbour
+distance from `data/processed/motif_distinctiveness.csv`, weighted 3:2:1:1 toward
+the isolated end, subject to at least 120 held-out 9mers.
+
+Panel (`fold_sets/panel_v4.txt`), 15 alleles spanning nn_dist 0.005-0.138:
+
+| allele | nn_dist | nearest | seq AUROC | held-out | status |
+|---|---|---|---|---|---|
+| HLA-B\*37:01 | 0.138 | B\*47:01 | 0.968 | 199 | to fold |
+| HLA-B\*47:01 | 0.138 | B\*37:01 | 0.993 | 560 | to fold |
+| HLA-B\*73:01 | 0.138 | B\*27:04 | 0.999 | 127 | to fold |
+| HLA-B\*08:01 | 0.114 | B\*14:02 | 0.966 | 952 | to fold |
+| HLA-C\*16:02 | 0.113 | C\*16:01 | 0.859 | 39 | folded |
+| HLA-B\*39:06 | 0.110 | B\*39:24 | 0.991 | 245 | to fold |
+| HLA-B\*15:18 | 0.102 | B\*38:01 | 0.978 | 200 | to fold |
+| HLA-A\*29:02 | 0.095 | A\*30:02 | 0.959 | 254 | to fold |
+| HLA-C\*15:05 | 0.074 | C\*15:02 | 0.889 | 44 | folded |
+| HLA-B\*15:03 | 0.070 | B\*15:01 | 0.980 | 435 | to fold |
+| HLA-C\*08:01 | 0.037 | C\*03:04 | 0.952 | 267 | to fold |
+| HLA-A\*02:01 | 0.031 | A\*02:04 | 0.967 | 2946 | folded |
+| HLA-B\*27:05 | 0.030 | B\*27:04 | 0.993 | 975 | folded |
+| HLA-B\*07:02 | 0.026 | B\*42:01 | 0.975 | 1346 | folded |
+| HLA-C\*03:04 | 0.005 | C\*03:03 | 0.951 | 986 | folded |
+
+Checks on the selection. The three most isolated alleles all sit at nn_dist 0.138,
+which could indicate a mutually-isolated cluster rather than individual
+distinctiveness — but `mean_dist_3` is 0.139-0.146 for all three, barely above
+`nn_dist`, so their second and third neighbours are about as far as their first.
+They are genuinely isolated. Eight panel alleles have fewer than 400 held-out
+9mers, where the subsampling control (`data/processed/subsample_pwm_noise.csv`)
+puts PWM noise at roughly 0.013 of nn_dist, about 9% of the observed spread.
+
+**A limitation to state.** The nine new alleles span sequence AUROC 0.952-0.999 —
+narrower than v3's 0.926-0.983. Selecting on isolation did not pull in
+poorly-performing alleles, because the candidate floor excludes exactly the
+isolated-and-sparse alleles that drive the -0.363 correlation. This is the same
+confound in a third guise. The panel answers "does structural benefit track motif
+isolation" and not "does structure help where sequence is weak".
+
+### Fold set v4
+
+`fold_sets/fold_set_v4.csv`: 216 complexes, 9 new alleles, 12 canonical binders
+(top decile by motif score) and 12 anchor-matched hard decoys (`--max-pctile 25`)
+each. Same scripts as v2; the six already-folded alleles are reused.
+
+Binder quality varies with pool size. B\*73:01 has 127 held-out candidates and a top
+decile of exactly 12, so its binders are the entire decile with no selection
+headroom and one sits at the 91st percentile — the same limitation C\*15:05 and
+C\*16:02 carry. B\*37:01 (199) and B\*15:18 (200) are only slightly better. Decoy
+pools are healthy throughout, the smallest being B\*39:06 at 1,257 candidates.
+
+B\*73:01's anchors come out as P2:{RSWY}, P9:{ALPV}. The proline preference at the
+C-terminus is atypical for class I and initially looked like a motif artefact from
+127 peptides, but it appears in both binder and decoy anchor definitions, so it is
+a genuine feature of this evolutionarily divergent allele.
+
+**HISTOFold input format.** The v3 code reads its prediction list with a
+`DictReader` and requires a three-column header:
+`allele_slug,peptide_sequence,pdb_id`. Our five-column tagged format needs
+converting, and the `pdb_id` column is written into the output directory name — so
+with `pdb_id` set to "NA" the directories become `NA__{slug}__{peptide}` and carry
+no binder/decoy label. This is the fourth naming scheme seen from HISTOFold;
+`analyse_pae_af2.py` now handles all four, and labels must come from the fold-set
+CSV rather than the directory name. Getting this wrong silently labels every
+complex a binder, which shows up as `decoy nan` in the per-allele table.
+
+### Per-allele scaling: every pooled structural figure was understated
+
+On fold set v4, pooled `pae_anchorC` gives 0.707 while per-allele AUROCs run
+0.708-0.917 with a mean near 0.81. The feature discriminates well *within* alleles
+and the pooled figure is dragged down by between-allele scale differences: PAE
+magnitude varies by allele (B\*73:01 binders average 4.96, B\*15:18 binders 3.52),
+so pooling ranks a low-PAE allele's decoy above a high-PAE allele's binder on offset
+alone.
+
+Standardising PAE within each allele before pooling:
+
+| model | pooled | per-allele z-scored | best feature (z) |
+|---|---|---|---|
+| AF2 v3b | 0.804 | **0.849** | `pae_anchors_ic` |
+| AF2 v2 | 0.782 | 0.829 | `pae_anchors_ic` |
+| ESMFold2 | 0.734 | 0.791 | `pae_anchor2` |
+| Boltz | 0.738 | 0.761 | `pae_anchorC` |
+| AF2 v4 panel | 0.707 | 0.832 | `pae_anchorC` |
+
+Gains of 0.023-0.125 across every model, so this is a property of the metric rather
+than of any one architecture.
+
+**RQ1 survives but the margin narrows.** Sequence 0.921 against AF2 z-scored 0.849,
+paired difference **+0.072 [+0.005, +0.143]**, stable across five bootstrap seeds
+(lower bound 0.004-0.006). The raw comparison was +0.139 [0.062, 0.218]. The
+direction holds either way, but with the best available structural configuration
+the result is just significant rather than comfortably so.
+
+**Caveat, and it matters.** Per-allele z-scoring uses the held-out set's own mean
+and standard deviation over 12 binders and 12 decoys. Standardising within a
+balanced set partly encodes the class structure, which makes this transductive
+rather than a legitimate inference-time transformation. The defensible range is
+therefore **0.804 to 0.849**, and both figures should be reported. A
+non-transductive version — standardising each allele against an independent
+reference distribution, for instance folds of training-split peptides for that
+allele — is needed before the higher number can be claimed.
+
+**A second observation worth pulling out.** Once between-allele scale is removed,
+`pae_anchors_ic` becomes the best AF2 feature, where raw pooling favoured
+`pae_anchors`. That is the IC-derived anchor definition from the 43% survey
+outperforming the hardcoded P2/C-terminus scheme. The effect was previously buried
+under scale differences. This connects to the anchor-convention finding and to
+Chris Thorpe's P5 rebalancing work, and is worth reporting as a result in its own
+right rather than as a feature-selection detail.
+
+### Fold set v4 results (AF2, v3b MSAs)
+
+All 216 folds complete, none logged as fast failures. Pooled: `pae_anchorC` 0.707,
+`pae_anchors_ic` 0.698, `pae_anchors` 0.695, `pae_pep_mhc` 0.678, `pae_anchor2`
+0.651. Per-allele `pae_anchors`:
+
+| allele | AUROC | binder/decoy PAE gap |
+|---|---|---|
+| HLA-B\*47:01 | 0.917 | +0.838 |
+| HLA-B\*39:06 | 0.875 | +0.443 |
+| HLA-B\*15:03 | 0.854 | +0.490 |
+| HLA-B\*15:18 | 0.819 | +0.340 |
+| HLA-B\*08:01 | 0.806 | +0.518 |
+| HLA-A\*29:02 | 0.799 | +0.498 |
+| HLA-C\*08:01 | 0.764 | +0.477 |
+| HLA-B\*73:01 | 0.757 | +1.353 |
+| HLA-B\*37:01 | 0.708 | +0.333 |
+
+B\*73:01 has by far the largest raw PAE gap (+1.353) but a middling AUROC (0.757) —
+another illustration of why raw magnitudes and the ranking statistic diverge.
+
+Still to run on this panel: confidence metrics, geometry, embeddings, and the
+sequence baseline (`results/sequence_v2.csv` covers only the original six alleles).
+The correlation the panel was built to test — does structural benefit track motif
+isolation across the 15 alleles — needs the sequence baseline first.
+
+### AlphaFold 3
+
+The request form has been retired; parameters are a direct download from
+`storage.googleapis.com/alphafold3/af3.bin.zst` (974 MB), subject to the weights
+terms of use. The genetic databases are the obstacle at roughly 630 GB, but AF3
+accepts pre-computed MSAs via `unpairedMsaPath`, so Chris's templates can be
+supplied directly — which also keeps any AF2/AF3 comparison controlled, since both
+would use identical MSAs.
+
+On licensing: AF3 output may not be used to train models intended for commercial
+application. Benny's view: "I am fairly relaxed about this. I doubt we will use the
+output in a commercial application. But happy for you to keep AF3 for evaluation."
+So AF3 stays evaluation-only and out of anything used for training.
 
 ### Environment notes
 
@@ -426,13 +622,22 @@ bound repertoires, which is a third basis. Not folding until this is settled.
   written with `to_cif` (the method is `to_mmcif`), then `to_mmcif` was called with
   a path argument it silently discards — it returns a string. A `try/except` around
   the write printed to a log rather than raising, so none of it surfaced.
-- HISTOFold has three issues, reported upstream and not yet patched: `os.system`'s
+- HISTOFold has three issues, reported upstream and being fixed: `os.system`'s
   return code is never checked so failed runs are logged `status=done` and skipped
   permanently on retry; the completeness check expects 26 output files where
   ColabFold 1.5.5 writes 24, so it never fires; and consequently a partial failure
-  (9 of 24 files, died during model 3 of 5) was logged as complete. **Always run a
-  per-directory file count before analysing a HISTOFold batch.**
+  (9 of 24 files, died during model 3 of 5) was logged as complete. This bit three
+  times, once invalidating an entire 144-complex run in 1.5 seconds per complex.
+  **Always run a per-directory file count before analysing a HISTOFold batch** — 24
+  files normally, 29 with `--save-single-representations`.
 - Beta's GPU is shared with two other users and `/home` reached 100% during this
   work. CS lab machines (`*-l` via `knuckles.cs.ucl.ac.uk`) offer RTX 3090 Ti cards
   with networked home directories, but those homes have a 10 GB quota — too small
   for the ESMFold2 model cache. Local `/tmp` on each machine has several hundred GB.
+  Note `/tmp` on Beta is tmpfs (RAM-backed, 63 GB), so writing there consumes memory
+  and is cleared on reboot.
+- Setting `OUTPUT_FOLDER` in HISTOFold's `local.toml` breaks the container path
+  construction: the a3m is written to `{OUTPUT_FOLDER}/tmp/` but passed into the
+  container as `/work/{item_path}`, where `/work` is the HISTOFold directory. The
+  run then fails instantly for every complex — and, because of the `os.system` bug,
+  logs all of them as done.
