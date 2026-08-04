@@ -597,52 +597,7 @@ sequence baseline (`results/sequence_v2.csv` covers only the original six allele
 The correlation the panel was built to test — does structural benefit track motif
 isolation across the 15 alleles — needs the sequence baseline first.
 
-### AlphaFold 3
-
-The request form has been retired; parameters are a direct download from
-`storage.googleapis.com/alphafold3/af3.bin.zst` (974 MB), subject to the weights
-terms of use. The genetic databases are the obstacle at roughly 630 GB, but AF3
-accepts pre-computed MSAs via `unpairedMsaPath`, so Chris's templates can be
-supplied directly — which also keeps any AF2/AF3 comparison controlled, since both
-would use identical MSAs.
-
-On licensing: AF3 output may not be used to train models intended for commercial
-application. Benny's view: "I am fairly relaxed about this. I doubt we will use the
-output in a commercial application. But happy for you to keep AF3 for evaluation."
-So AF3 stays evaluation-only and out of anything used for training.
-
-### Environment notes
-
-- **ESMC-6B (24 GB in the HuggingFace cache) is a required ESMFold2 dependency**
-  and must not be deleted, despite appearing nowhere in this codebase. Deleting it
-  causes a silent 24 GB re-download on the next fold.
-- `biotite` is required by the geometry scripts and was not previously installed.
-- `fold_esmfold2.py` had three bugs in one code path, each masked by the next:
-  structures were passed as `results[0].complexes` (the field is `.complex`), then
-  written with `to_cif` (the method is `to_mmcif`), then `to_mmcif` was called with
-  a path argument it silently discards — it returns a string. A `try/except` around
-  the write printed to a log rather than raising, so none of it surfaced.
-- HISTOFold has three issues, reported upstream and being fixed: `os.system`'s
-  return code is never checked so failed runs are logged `status=done` and skipped
-  permanently on retry; the completeness check expects 26 output files where
-  ColabFold 1.5.5 writes 24, so it never fires; and consequently a partial failure
-  (9 of 24 files, died during model 3 of 5) was logged as complete. This bit three
-  times, once invalidating an entire 144-complex run in 1.5 seconds per complex.
-  **Always run a per-directory file count before analysing a HISTOFold batch** — 24
-  files normally, 29 with `--save-single-representations`.
-- Beta's GPU is shared with two other users and `/home` reached 100% during this
-  work. CS lab machines (`*-l` via `knuckles.cs.ucl.ac.uk`) offer RTX 3090 Ti cards
-  with networked home directories, but those homes have a 10 GB quota — too small
-  for the ESMFold2 model cache. Local `/tmp` on each machine has several hundred GB.
-  Note `/tmp` on Beta is tmpfs (RAM-backed, 63 GB), so writing there consumes memory
-  and is cleared on reboot.
-- Setting `OUTPUT_FOLDER` in HISTOFold's `local.toml` breaks the container path
-  construction: the a3m is written to `{OUTPUT_FOLDER}/tmp/` but passed into the
-  container as `/work/{item_path}`, where `/work` is the HISTOFold directory. The
-  run then fails instantly for every complex — and, because of the `os.system` bug,
-  logs all of them as done.
-
-  ### Why the panel cannot test the hypothesis it was built for
+### Why the panel cannot test the hypothesis it was built for
 
 The v4 panel was selected to test whether structural features contribute more for
 motif-isolated alleles. On the nine new alleles, and on all fifteen once the
@@ -731,3 +686,48 @@ distinguishes them is data scarcity rather than motif distinctiveness. Given the
 noise limit above, two alleles is not evidence, but it is the pattern the equity
 claim would predict and it is worth stating as an observation for future work with
 a properly powered design.
+
+### AlphaFold 3
+
+The request form has been retired; parameters are a direct download from
+`storage.googleapis.com/alphafold3/af3.bin.zst` (974 MB), subject to the weights
+terms of use. The genetic databases are the obstacle at roughly 630 GB, but AF3
+accepts pre-computed MSAs via `unpairedMsaPath`, so Chris's templates can be
+supplied directly — which also keeps any AF2/AF3 comparison controlled, since both
+would use identical MSAs.
+
+On licensing: AF3 output may not be used to train models intended for commercial
+application. Benny's view: "I am fairly relaxed about this. I doubt we will use the
+output in a commercial application. But happy for you to keep AF3 for evaluation."
+So AF3 stays evaluation-only and out of anything used for training.
+
+### Environment notes
+
+- **ESMC-6B (24 GB in the HuggingFace cache) is a required ESMFold2 dependency**
+  and must not be deleted, despite appearing nowhere in this codebase. Deleting it
+  causes a silent 24 GB re-download on the next fold.
+- `biotite` is required by the geometry scripts and was not previously installed.
+- `fold_esmfold2.py` had three bugs in one code path, each masked by the next:
+  structures were passed as `results[0].complexes` (the field is `.complex`), then
+  written with `to_cif` (the method is `to_mmcif`), then `to_mmcif` was called with
+  a path argument it silently discards — it returns a string. A `try/except` around
+  the write printed to a log rather than raising, so none of it surfaced.
+- HISTOFold has three issues, reported upstream and being fixed: `os.system`'s
+  return code is never checked so failed runs are logged `status=done` and skipped
+  permanently on retry; the completeness check expects 26 output files where
+  ColabFold 1.5.5 writes 24, so it never fires; and consequently a partial failure
+  (9 of 24 files, died during model 3 of 5) was logged as complete. This bit three
+  times, once invalidating an entire 144-complex run in 1.5 seconds per complex.
+  **Always run a per-directory file count before analysing a HISTOFold batch** — 24
+  files normally, 29 with `--save-single-representations`.
+- Beta's GPU is shared with two other users and `/home` reached 100% during this
+  work. CS lab machines (`*-l` via `knuckles.cs.ucl.ac.uk`) offer RTX 3090 Ti cards
+  with networked home directories, but those homes have a 10 GB quota — too small
+  for the ESMFold2 model cache. Local `/tmp` on each machine has several hundred GB.
+  Note `/tmp` on Beta is tmpfs (RAM-backed, 63 GB), so writing there consumes memory
+  and is cleared on reboot.
+- Setting `OUTPUT_FOLDER` in HISTOFold's `local.toml` breaks the container path
+  construction: the a3m is written to `{OUTPUT_FOLDER}/tmp/` but passed into the
+  container as `/work/{item_path}`, where `/work` is the HISTOFold directory. The
+  run then fails instantly for every complex — and, because of the `os.system` bug,
+  logs all of them as done.
