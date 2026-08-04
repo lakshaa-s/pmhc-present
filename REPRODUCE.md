@@ -71,25 +71,46 @@ specifically rather than of confidence generally.
 Note `auroc_structure.py`'s per-allele table only prints `pae_anchors` and
 `n_contacts`, so confidence runs show empty per-allele rows. Values are in the CSV.
 
-### Geometry carries no signal
+### Geometry carries no reliable signal
 
-`scripts/extract_geometry_af2.py`, run on AF2's relaxed rank_001 PDB structures —
-no refolding needed, ColabFold writes them for every prediction.
+`scripts/extract_geometry_af2.py` (AF2, PDB) and `scripts/extract_geometry.py`
+(ESMFold2, mmCIF). No refolding needed for AF2 — ColabFold writes relaxed PDBs for
+every prediction. ESMFold2 structures only became available after the `to_mmcif`
+fix on 31 July.
 
-Best feature is `anchor2_contacts` at **0.492**, chance. Most features fall below
-0.5: `n_contacts` 0.363, `contacts_per_res` 0.363, `n_contacts_close` 0.407,
-`anchorC_contacts` 0.419, `min_anchor_dist2` 0.462, `min_anchor_distC` 0.466.
+Three independent measurements, best feature in each:
 
-`n_contacts` is inverted — decoys make *more* contacts than binders (364 vs 350) —
-and consistently so across five of six alleles, with C\*15:05 at 0.132 and C\*16:02
-at 0.167. Plausible reading: hard decoys match the target's anchors by
-construction, so AF2 seats them in the groove; lacking correct non-anchor
-complementarity they may be modelled as compressed against the MHC surface, and
-Amber relaxation pushes atoms into contact regardless of whether the pose is right.
+| run | best feature | AUROC | `n_contacts` |
+|---|---|---|---|
+| AF2, fold set v2 | `anchor2_contacts` | 0.492 | 0.363 |
+| AF2, fold set v4 | `anchor2_contacts` | 0.607 | 0.558 |
+| ESMFold2, fold set v4 | `min_anchor_dist2` | 0.643 | 0.584 |
+
+**The sign is not consistent.** On v2 decoys made more contacts than binders
+(364 vs 350); on v4 binders made more, under both architectures. Per-allele
+`n_contacts` within the ESMFold2 v4 run alone ranges 0.278 to 0.896, with six
+alleles showing binders making more contacts and three the reverse. Per-allele
+z-scoring changes nothing (v2 0.363 to 0.370, v4 0.558 unchanged), so this is not
+a scaling artefact.
+
+**Conclusion: geometry carries no reliable binder/decoy signal.** All three
+measurements sit near chance, and the direction flips between panels.
+
+An earlier version of this section reported the v2 result as a consistent inversion
+and offered a mechanism for it — anchor-matched decoys seated in the groove but
+compressed against the MHC surface, with Amber relaxation forcing contacts. That
+explanation does not survive the v4 replication and is withdrawn. The v2 figure was
+noise around 0.5.
 
 Geometry is the only feature category computed from coordinates rather than from
-the model's self-assessment, so if fold quality carried binding signal this is
-where it would appear. It gives nothing.
+the model's self-assessment, so if fold quality carried binding signal this is where
+it would appear. It does not.
+
+**A bug worth recording.** `extract_geometry.py`'s `parse_name` tested
+`tag == "decoy"`, but every fold set from v2 onward uses `hard` for anchor-matched
+decoys. The result is that all complexes are labelled binders and every AUROC comes
+out `nan` — loud rather than silent, fortunately. `extract_geometry_af2.py` handled
+both tags from the start, so no committed result was affected.
 
 ### Fold quality is not the structural ceiling
 
@@ -596,6 +617,44 @@ Still to run on this panel: confidence metrics, geometry, embeddings, and the
 sequence baseline (`results/sequence_v2.csv` covers only the original six alleles).
 The correlation the panel was built to test — does structural benefit track motif
 isolation across the 15 alleles — needs the sequence baseline first.
+
+### ESMFold2 on fold set v4
+
+216 folds, none failed. Structures written for the first time (the `to_mmcif` fix
+landed after the v2 ESMFold2 run), so this is also the first ESMFold2 geometry.
+
+PAE: pooled 0.659 raw, **0.805 per-allele z-scored**, `pae_anchors_ic` best in both.
+That is the largest scaling correction yet (+0.146) and the fourth independent
+measurement in which the IC-derived anchor definition beats the hardcoded
+P2/C-terminus scheme after scale correction — two architectures, two panels.
+
+Confidence: global metrics 0.497-0.550 (ipTM 0.550, pTM 0.497, complex pLDDT 0.544),
+localised 0.594-0.639 (`iptm_pep_self` 0.639, `iptm_pep_mhc` 0.635). Replicates the
+localisation pattern from v2 on nine different alleles.
+
+Per-allele `pae_anchors`: B\*73:01 0.896, B\*15:18 0.854, B\*39:06 0.854, C\*08:01
+0.833, B\*08:01 0.806, B\*15:03 0.792, B\*47:01 0.778, A\*29:02 0.611, B\*37:01 0.535.
+
+One caution on B\*73:01. Its 0.896 and +2.636 mean PAE gap are driven by four decoys
+placed very badly indeed (FYSNKEIFL 10.1, LWDLQDRVL 9.8, RSWAYRDSL 9.5, HSMSQPIMV
+8.2, against binders all near 3). That is a handful of outliers rather than uniform
+discrimination, and should not be read as strong per-allele signal.
+
+**Structural summary across both panels** (best feature, per-allele z-scored where
+PAE):
+
+| | v2 (6 alleles) | v4 (9 alleles) |
+|---|---|---|
+| AF2 PAE | 0.849 | 0.832 |
+| ESMFold2 PAE | 0.791 | 0.805 |
+| AF2 confidence | 0.756 | 0.727 |
+| ESMFold2 confidence | — | 0.639 |
+| geometry | 0.492 | 0.607-0.643 |
+| AF2 representations | 0.834 | 0.723 |
+| **sequence** | **0.921** | **0.930** |
+
+The ordering is stable: PAE and representations lead, confidence follows, geometry
+is at chance, and sequence is above all of them on both panels.
 
 ### Why the panel cannot test the hypothesis it was built for
 
