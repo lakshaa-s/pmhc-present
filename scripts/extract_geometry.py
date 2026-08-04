@@ -55,7 +55,9 @@ def parse_name(name):
     if allele_slug.startswith(("hla_a_", "hla_b_", "hla_c_")):
         b = allele_slug.split("_")
         allele = f"HLA-{b[1].upper()}*{b[2]}:{b[3]}"
-    return allele, peptide, (tag == "decoy")
+    # fold set v2 onward uses "hard" for anchor-matched decoys; the original
+    # easy-decoy sets used "decoy"
+    return allele, peptide, (tag in ("decoy", "hard"))
 
 
 def interface_features(arr, peptide_len):
