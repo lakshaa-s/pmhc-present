@@ -70,8 +70,14 @@ def load_fold_set(path: str) -> dict:
             if len(row) < 4:
                 continue
             tag, _locus, slug, peptide = row[0], row[1], row[2], row[3]
-            out[f"{slug}_{peptide.lower()}"] = (
-                slug_to_allele(slug), peptide, tag in ("decoy", "hard"))
+            meta = (slug_to_allele(slug), peptide, tag in ("decoy", "hard"))
+            # HISTOFold has produced four directory naming schemes; the v4 input
+            # format (three-column header) writes the pdb_id column into the name,
+            # which for our inputs is the literal "NA" and carries no label
+            out[f"{slug}_{peptide.lower()}"] = meta
+            out[f"{slug}__{peptide.lower()}"] = meta
+            out[f"{tag}__{slug}__{peptide.lower()}"] = meta
+            out[f"NA__{slug}__{peptide.lower()}"] = meta
     return out
 
 
