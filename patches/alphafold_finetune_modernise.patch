@@ -1,0 +1,376 @@
+diff --git a/alphafold/common/residue_constants.py b/alphafold/common/residue_constants.py
+index 7487ff6..f9cb334 100644
+--- a/alphafold/common/residue_constants.py
++++ b/alphafold/common/residue_constants.py
+@@ -772,10 +772,10 @@ def _make_rigid_transformation_4x4(ex, ey, translation):
+ # and an array with (restype, atomtype, coord) for the atom positions
+ # and compute affine transformation matrices (4,4) from one rigid group to the
+ # previous group
+-restype_atom37_to_rigid_group = np.zeros([21, 37], dtype=np.int)
++restype_atom37_to_rigid_group = np.zeros([21, 37], dtype=int)
+ restype_atom37_mask = np.zeros([21, 37], dtype=np.float32)
+ restype_atom37_rigid_group_positions = np.zeros([21, 37, 3], dtype=np.float32)
+-restype_atom14_to_rigid_group = np.zeros([21, 14], dtype=np.int)
++restype_atom14_to_rigid_group = np.zeros([21, 14], dtype=int)
+ restype_atom14_mask = np.zeros([21, 14], dtype=np.float32)
+ restype_atom14_rigid_group_positions = np.zeros([21, 14, 3], dtype=np.float32)
+ restype_rigid_group_default_frame = np.zeros([21, 8, 4, 4], dtype=np.float32)
+diff --git a/alphafold/data/mmcif_parsing.py b/alphafold/data/mmcif_parsing.py
+index 1837516..42eb1b9 100644
+--- a/alphafold/data/mmcif_parsing.py
++++ b/alphafold/data/mmcif_parsing.py
+@@ -20,7 +20,16 @@ from typing import Any, Mapping, Optional, Sequence, Tuple
+ 
+ from absl import logging
+ from Bio import PDB
+-from Bio.Data import SCOPData
++try:
++    from Bio.Data import SCOPData
++except ImportError:
++    # Biopython >= 1.80 removed SCOPData. Only protein_letters_3to1 is used, and
++    # only on the database-template path, which we do not take: templates are
++    # supplied explicitly through the alignment file.
++    from Bio.Data.PDBData import protein_letters_3to1 as _p3to1
++
++    class SCOPData:
++        protein_letters_3to1 = _p3to1
+ 
+ # Type aliases:
+ ChainId = str
+diff --git a/alphafold/data/templates.py b/alphafold/data/templates.py
+index a9fc458..a3ebd9b 100644
+--- a/alphafold/data/templates.py
++++ b/alphafold/data/templates.py
+@@ -91,8 +91,8 @@ TEMPLATE_FEATURES = {
+     'template_aatype': np.float32,
+     'template_all_atom_masks': np.float32,
+     'template_all_atom_positions': np.float32,
+-    'template_domain_names': np.object,
+-    'template_sequence': np.object,
++    'template_domain_names': object,
++    'template_sequence': object,
+     'template_sum_probs': np.float32,
+ }
+ 
+diff --git a/alphafold/model/all_atom.py b/alphafold/model/all_atom.py
+index c8ebe8b..8bb1143 100644
+--- a/alphafold/model/all_atom.py
++++ b/alphafold/model/all_atom.py
+@@ -496,11 +496,11 @@ def torsion_angles_to_frames(
+ 
+   # chi2, chi3, and chi4 frames do not transform to the backbone frame but to
+   # the previous frame. So chain them up accordingly.
+-  chi2_frame_to_frame = jax.tree_map(lambda x: x[:, 5], all_frames)
+-  chi3_frame_to_frame = jax.tree_map(lambda x: x[:, 6], all_frames)
+-  chi4_frame_to_frame = jax.tree_map(lambda x: x[:, 7], all_frames)
++  chi2_frame_to_frame = jax.tree_util.tree_map(lambda x: x[:, 5], all_frames)
++  chi3_frame_to_frame = jax.tree_util.tree_map(lambda x: x[:, 6], all_frames)
++  chi4_frame_to_frame = jax.tree_util.tree_map(lambda x: x[:, 7], all_frames)
+ 
+-  chi1_frame_to_backb = jax.tree_map(lambda x: x[:, 4], all_frames)
++  chi1_frame_to_backb = jax.tree_util.tree_map(lambda x: x[:, 4], all_frames)
+   chi2_frame_to_backb = r3.rigids_mul_rigids(chi1_frame_to_backb,
+                                              chi2_frame_to_frame)
+   chi3_frame_to_backb = r3.rigids_mul_rigids(chi2_frame_to_backb,
+@@ -513,7 +513,7 @@ def torsion_angles_to_frames(
+     return jnp.concatenate(
+         [xall[:, 0:5], x5[:, None], x6[:, None], x7[:, None]], axis=-1)
+ 
+-  all_frames_to_backb = jax.tree_map(
++  all_frames_to_backb = jax.tree_util.tree_map(
+       _concat_frames,
+       all_frames,
+       chi2_frame_to_backb,
+@@ -523,7 +523,7 @@ def torsion_angles_to_frames(
+   # Create the global frames.
+   # shape (N, 8)
+   all_frames_to_global = r3.rigids_mul_rigids(
+-      jax.tree_map(lambda x: x[:, None], backb_to_global),
++      jax.tree_util.tree_map(lambda x: x[:, None], backb_to_global),
+       all_frames_to_backb)
+ 
+   return all_frames_to_global
+@@ -551,7 +551,7 @@ def frames_and_literature_positions_to_atom14_pos(
+       residx_to_group_idx, num_classes=8)  # shape (N, 14, 8)
+ 
+   # r3.Rigids with shape (N, 14)
+-  map_atoms_to_global = jax.tree_map(
++  map_atoms_to_global = jax.tree_util.tree_map(
+       lambda x: jnp.sum(x[:, None, :] * group_mask, axis=-1),
+       all_frames_to_global)
+ 
+@@ -567,7 +567,7 @@ def frames_and_literature_positions_to_atom14_pos(
+ 
+   # Mask out non-existing atoms.
+   mask = utils.batched_gather(residue_constants.restype_atom14_mask, aatype)
+-  pred_positions = jax.tree_map(lambda x: x * mask, pred_positions)
++  pred_positions = jax.tree_util.tree_map(lambda x: x * mask, pred_positions)
+ 
+   return pred_positions
+ 
+@@ -1050,14 +1050,14 @@ def frame_aligned_point_error(
+   # Compute array of predicted positions in the predicted frames.
+   # r3.Vecs (num_frames, num_positions)
+   local_pred_pos = r3.rigids_mul_vecs(
+-      jax.tree_map(lambda r: r[:, None], r3.invert_rigids(pred_frames)),
+-      jax.tree_map(lambda x: x[None, :], pred_positions))
++      jax.tree_util.tree_map(lambda r: r[:, None], r3.invert_rigids(pred_frames)),
++      jax.tree_util.tree_map(lambda x: x[None, :], pred_positions))
+ 
+   # Compute array of target positions in the target frames.
+   # r3.Vecs (num_frames, num_positions)
+   local_target_pos = r3.rigids_mul_vecs(
+-      jax.tree_map(lambda r: r[:, None], r3.invert_rigids(target_frames)),
+-      jax.tree_map(lambda x: x[None, :], target_positions))
++      jax.tree_util.tree_map(lambda r: r[:, None], r3.invert_rigids(target_frames)),
++      jax.tree_util.tree_map(lambda x: x[None, :], target_positions))
+ 
+   # Compute errors between the structures.
+   # jnp.ndarray (num_frames, num_positions)
+@@ -1129,8 +1129,8 @@ def get_alt_atom14(aatype, positions, mask):
+   renaming_transform = utils.batched_gather(
+       jnp.asarray(RENAMING_MATRICES), aatype)
+ 
+-  positions = jax.tree_map(lambda x: x[:, :, None], positions)
+-  alternative_positions = jax.tree_map(
++  positions = jax.tree_util.tree_map(lambda x: x[:, :, None], positions)
++  alternative_positions = jax.tree_util.tree_map(
+       lambda x: jnp.sum(x, axis=1), positions * renaming_transform)
+ 
+   # Create the mask for the alternative ground truth (differs from the
+diff --git a/alphafold/model/folding.py b/alphafold/model/folding.py
+index b39f6eb..29e4a9f 100644
+--- a/alphafold/model/folding.py
++++ b/alphafold/model/folding.py
+@@ -454,7 +454,7 @@ def generate_affines(representations, batch, config, global_config,
+         aatype=batch['aatype'])
+     outputs.append(output)
+ 
+-  output = jax.tree_map(lambda *x: jnp.stack(x), *outputs)
++  output = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *outputs)
+   # Include the activations in the output dict for use by the LDDT-Head.
+   output['act'] = activations['act']
+ 
+@@ -694,9 +694,9 @@ def sidechain_loss(batch, value, config):
+ 
+   def _slice_last_layer_and_flatten(x):
+     return jnp.reshape(x[-1], [-1])
+-  flat_pred_frames = jax.tree_map(
++  flat_pred_frames = jax.tree_util.tree_map(
+       _slice_last_layer_and_flatten, pred_frames)
+-  flat_pred_positions = jax.tree_map(
++  flat_pred_positions = jax.tree_util.tree_map(
+       _slice_last_layer_and_flatten, pred_positions)
+   # FAPE Loss on sidechains
+   fape = all_atom.frame_aligned_point_error(
+diff --git a/alphafold/model/layer_stack_test.py b/alphafold/model/layer_stack_test.py
+index 062221f..5aff609 100644
+--- a/alphafold/model/layer_stack_test.py
++++ b/alphafold/model/layer_stack_test.py
+@@ -198,7 +198,7 @@ class LayerStackTest(parameterized.TestCase):
+     assert_fn = functools.partial(
+         np.testing.assert_allclose, atol=1e-4, rtol=1e-4)
+ 
+-    jax.tree_multimap(assert_fn, unrolled_grad,
++    jax.tree_util.tree_map(assert_fn, unrolled_grad,
+                       _slice_layers_params(layer_stack_grad))
+ 
+   def test_random(self):
+diff --git a/alphafold/model/mapping.py b/alphafold/model/mapping.py
+index e6c0fd8..bfee614 100644
+--- a/alphafold/model/mapping.py
++++ b/alphafold/model/mapping.py
+@@ -19,6 +19,12 @@ import functools
+ from typing import Any, Callable, Optional, Sequence, Union
+ 
+ import haiku as hk
++
++# Haiku 0.0.10 requires split_rng on hk.vmap. This code predates that argument
++# and the mapped functions here are deterministic, so the documented opt-out
++# preserves the original behaviour.
++if hasattr(hk.vmap, "require_split_rng"):
++    hk.vmap.require_split_rng = False
+ import jax
+ import jax.numpy as jnp
+ 
+@@ -46,11 +52,11 @@ def _maybe_get_size(array, axis):
+ 
+ 
+ def _expand_axes(axes, values, name='sharded_apply'):
+-  values_tree_def = jax.tree_flatten(values)[1]
++  values_tree_def = jax.tree_util.tree_flatten(values)[1]
+   flat_axes = jax.api_util.flatten_axes(name, values_tree_def, axes)
+   # Replace None's with PROXY
+   flat_axes = [PROXY if x is None else x for x in flat_axes]
+-  return jax.tree_unflatten(values_tree_def, flat_axes)
++  return jax.tree_util.tree_unflatten(values_tree_def, flat_axes)
+ 
+ 
+ def sharded_map(
+@@ -120,8 +126,8 @@ def sharded_apply(
+     # Expand in axes and Determine Loop range
+     in_axes_ = _expand_axes(in_axes, args)
+ 
+-    in_sizes = jax.tree_multimap(_maybe_get_size, args, in_axes_)
+-    flat_sizes = jax.tree_flatten(in_sizes)[0]
++    in_sizes = jax.tree_util.tree_map(_maybe_get_size, args, in_axes_)
++    flat_sizes = jax.tree_util.tree_flatten(in_sizes)[0]
+     in_size = max(flat_sizes)
+     assert all(i in {in_size, -1} for i in flat_sizes)
+ 
+@@ -132,28 +138,28 @@ def sharded_apply(
+     last_shard_size = shard_size if last_shard_size == 0 else last_shard_size
+ 
+     def apply_fun_to_slice(slice_start, slice_size):
+-      input_slice = jax.tree_multimap(
++      input_slice = jax.tree_util.tree_map(
+           lambda array, axis: _maybe_slice(array, slice_start, slice_size, axis
+                                           ), args, in_axes_)
+       return fun(*input_slice)
+ 
+     remainder_shape_dtype = hk.eval_shape(
+         partial(apply_fun_to_slice, 0, last_shard_size))
+-    out_dtypes = jax.tree_map(lambda x: x.dtype, remainder_shape_dtype)
+-    out_shapes = jax.tree_map(lambda x: x.shape, remainder_shape_dtype)
++    out_dtypes = jax.tree_util.tree_map(lambda x: x.dtype, remainder_shape_dtype)
++    out_shapes = jax.tree_util.tree_map(lambda x: x.shape, remainder_shape_dtype)
+     out_axes_ = _expand_axes(out_axes, remainder_shape_dtype)
+ 
+     if num_extra_shards > 0:
+       regular_shard_shape_dtype = hk.eval_shape(
+           partial(apply_fun_to_slice, 0, shard_size))
+-      shard_shapes = jax.tree_map(lambda x: x.shape, regular_shard_shape_dtype)
++      shard_shapes = jax.tree_util.tree_map(lambda x: x.shape, regular_shard_shape_dtype)
+ 
+       def make_output_shape(axis, shard_shape, remainder_shape):
+         return shard_shape[:axis] + (
+             shard_shape[axis] * num_extra_shards +
+             remainder_shape[axis],) + shard_shape[axis + 1:]
+ 
+-      out_shapes = jax.tree_multimap(make_output_shape, out_axes_, shard_shapes,
++      out_shapes = jax.tree_util.tree_map(make_output_shape, out_axes_, shard_shapes,
+                                      out_shapes)
+ 
+     # Calls dynamic Update slice with different argument order
+@@ -165,7 +171,7 @@ def sharded_apply(
+       slice_out = apply_fun_to_slice(slice_start, slice_size)
+       update_slice = partial(
+           dynamic_update_slice_in_dim, i=slice_start)
+-      return jax.tree_multimap(update_slice, outputs, slice_out, out_axes_)
++      return jax.tree_util.tree_map(update_slice, outputs, slice_out, out_axes_)
+ 
+     def scan_iteration(outputs, i):
+       new_outputs = compute_shard(outputs, i, shard_size)
+@@ -176,7 +182,7 @@ def sharded_apply(
+     def allocate_buffer(dtype, shape):
+       return jnp.zeros(shape, dtype=dtype)
+ 
+-    outputs = jax.tree_multimap(allocate_buffer, out_dtypes, out_shapes)
++    outputs = jax.tree_util.tree_map(allocate_buffer, out_dtypes, out_shapes)
+ 
+     if slice_starts.shape[0] > 0:
+       outputs, _ = hk.scan(scan_iteration, outputs, slice_starts)
+diff --git a/alphafold/model/model.py b/alphafold/model/model.py
+index 2bba94f..70ca904 100644
+--- a/alphafold/model/model.py
++++ b/alphafold/model/model.py
+@@ -139,7 +139,7 @@ class RunModel:
+     # This block is to ensure benchmark timings are accurate. Some blocking is
+     # already happening when computing get_confidence_metrics, and this ensures
+     # all outputs are blocked on.
+-    jax.tree_map(lambda x: x.block_until_ready(), result)
++    jax.tree_util.tree_map(lambda x: x.block_until_ready(), result)
+     result.update(get_confidence_metrics(result))
+     logging.info('Output shape was %s',
+                  tree.map_structure(lambda x: x.shape, result))
+diff --git a/alphafold/model/modules.py b/alphafold/model/modules.py
+index 808dca4..3196b4e 100644
+--- a/alphafold/model/modules.py
++++ b/alphafold/model/modules.py
+@@ -317,7 +317,7 @@ class AlphaFold(hk.Module):
+           'prev_msa_first_row': ret['representations']['msa_first_row'],
+           'prev_pair': ret['representations']['pair'],
+       }
+-      return jax.tree_map(jax.lax.stop_gradient, new_prev)
++      return jax.tree_util.tree_map(jax.lax.stop_gradient, new_prev)
+ 
+     def do_call(prev,
+                 recycle_idx,
+@@ -328,11 +328,11 @@ class AlphaFold(hk.Module):
+           start = recycle_idx * num_ensemble
+           size = num_ensemble
+           return jax.lax.dynamic_slice_in_dim(x, start, size, axis=0)
+-        ensembled_batch = jax.tree_map(slice_recycle_idx, batch)
++        ensembled_batch = jax.tree_util.tree_map(slice_recycle_idx, batch)
+       else:
+         num_ensemble = batch_size
+         ensembled_batch = batch
+-      non_ensembled_batch = jax.tree_map(lambda x: x, prev)
++      non_ensembled_batch = jax.tree_util.tree_map(lambda x: x, prev)
+ 
+       return impl(
+           ensembled_batch=ensembled_batch,
+@@ -1769,8 +1769,9 @@ class EmbeddingsAndEvoformer(hk.Module):
+                                           True,
+                                           name='prev_msa_first_row_norm')(
+                                               batch['prev_msa_first_row'])
+-        msa_activations = jax.ops.index_add(msa_activations, 0,
+-                                            prev_msa_first_row)
++        # jax.ops.index_add was removed in JAX 0.2.22; .at[].add() is the
++        # documented equivalent and is numerically identical
++        msa_activations = msa_activations.at[0].add(prev_msa_first_row)
+ 
+       if 'prev_pair' in batch:
+         pair_activations += hk.LayerNorm([-1],
+diff --git a/alphafold/model/prng.py b/alphafold/model/prng.py
+index 2dde129..45815e4 100644
+--- a/alphafold/model/prng.py
++++ b/alphafold/model/prng.py
+@@ -45,7 +45,7 @@ class SafeKey:
+     self._assert_not_used()
+     self._used = True
+     new_keys = jax.random.split(self._key, num_keys)
+-    return jax.tree_map(SafeKey, tuple(new_keys))
++    return jax.tree_util.tree_map(SafeKey, tuple(new_keys))
+ 
+   def duplicate(self, num_keys=2):
+     self._assert_not_used()
+diff --git a/alphafold/model/quat_affine.py b/alphafold/model/quat_affine.py
+index 9ebcd20..f21b4a9 100644
+--- a/alphafold/model/quat_affine.py
++++ b/alphafold/model/quat_affine.py
+@@ -301,8 +301,8 @@ class QuatAffine(object):
+     translation = self.translation
+     for _ in range(extra_dims):
+       expand_fn = functools.partial(jnp.expand_dims, axis=-1)
+-      rotation = jax.tree_map(expand_fn, rotation)
+-      translation = jax.tree_map(expand_fn, translation)
++      rotation = jax.tree_util.tree_map(expand_fn, rotation)
++      translation = jax.tree_util.tree_map(expand_fn, translation)
+ 
+     rot_point = apply_rot_to_vec(rotation, point)
+     return [
+@@ -327,8 +327,8 @@ class QuatAffine(object):
+     translation = self.translation
+     for _ in range(extra_dims):
+       expand_fn = functools.partial(jnp.expand_dims, axis=-1)
+-      rotation = jax.tree_map(expand_fn, rotation)
+-      translation = jax.tree_map(expand_fn, translation)
++      rotation = jax.tree_util.tree_map(expand_fn, rotation)
++      translation = jax.tree_util.tree_map(expand_fn, translation)
+ 
+     rot_point = [
+         transformed_point[0] - translation[0],
+diff --git a/alphafold/relax/utils.py b/alphafold/relax/utils.py
+index 4bd4aca..2000b92 100644
+--- a/alphafold/relax/utils.py
++++ b/alphafold/relax/utils.py
+@@ -74,7 +74,7 @@ def assert_equal_nonterminal_atom_types(
+   """Checks that pre- and post-minimized proteins have same atom set."""
+   # Ignore any terminal OXT atoms which may have been added by minimization.
+   oxt = residue_constants.atom_order['OXT']
+-  no_oxt_mask = np.ones(shape=atom_mask.shape, dtype=np.bool)
++  no_oxt_mask = np.ones(shape=atom_mask.shape, dtype=bool)
+   no_oxt_mask[..., oxt] = False
+   np.testing.assert_almost_equal(ref_atom_mask[no_oxt_mask],
+                                  atom_mask[no_oxt_mask])
