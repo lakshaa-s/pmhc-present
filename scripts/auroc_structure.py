@@ -30,6 +30,8 @@ from sklearn.metrics import roc_auc_score
 # feature -> True if LOWER values indicate binding (so the score is negated)
 LOWER_IS_BINDING = {
     "pae_anchors": True,
+    "pae_min_pep_mhc": True,
+    "ranking_score": False, "has_clash": True, "fraction_disordered": True,
     # confidence metrics (scripts/extract_confidence.py)
     "iptm": False, "ptm": False, "protein_iptm": False,
     "complex_plddt": False, "complex_iplddt": False,
