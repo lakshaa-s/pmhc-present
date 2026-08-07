@@ -1,0 +1,8 @@
+allele,n_seeds,spearman_landscape,spearman_position_sensitivity,model_top_positions,pwm_top_positions,agree_on_anchors
+HLA-A*02:01,12,0.55,0.633,"[9, 2]","[9, 2]",True
+HLA-C*03:04,12,0.463,0.883,"[2, 9]","[9, 2]",True
+HLA-B*15:01,12,0.601,0.917,"[9, 2]","[9, 2]",True
+HLA-A*03:01,12,0.427,0.667,"[9, 1]","[9, 2]",False
+HLA-B*57:01,12,0.467,0.75,"[2, 9]","[9, 2]",True
+HLA-A*26:01,12,0.567,0.817,"[2, 1]","[2, 9]",False
+HLA-B*08:01,12,0.541,0.833,"[9, 2]","[9, 2]",True
