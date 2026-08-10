@@ -1,0 +1,8 @@
+model,decoys,auroc,n
+sequence,measured non-binders,0.9213,72
+sequence,anchor-matched,0.9954,72
+netmhcpan,measured non-binders,0.9915,72
+finetuned_af,measured non-binders,0.9159,72
+vanilla_af2,measured non-binders,0.8133,72
+finetuned_af,anchor-matched,0.8781,72
+vanilla_af2,anchor-matched,0.787,72
