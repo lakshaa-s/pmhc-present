@@ -1,0 +1,5 @@
+allele,struct_top_positions,derived_anchors,struct_top_in_anchors,landscape_rho,position_rho,seq_top_positions
+HLA-A*02:01,"[9, 2]","[2, 9]",True,0.262,0.267,"[9, 2]"
+HLA-B*08:01,"[5, 9]","[2, 5, 8, 9]",True,0.529,0.6,"[9, 2]"
+HLA-B*57:01,"[9, 2]","[2, 9]",True,0.413,0.333,"[2, 9]"
+HLA-C*03:04,"[2, 3]","[2, 9]",False,0.088,-0.1,"[2, 9]"
