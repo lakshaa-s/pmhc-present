@@ -68,6 +68,11 @@ def main() -> None:
     ap.add_argument("--alleles", nargs="+", required=True)
     ap.add_argument("--fold-sets", nargs="+", required=True)
     ap.add_argument("--n-seeds", type=int, default=3)
+    ap.add_argument("--seed-offset", type=int, default=0,
+                    help="skip this many starting peptides, so an extension run "
+                         "picks up where a previous one stopped. Seed labels "
+                         "continue the numbering rather than restarting, so the "
+                         "two sets of folds can be pooled without collision.")
     ap.add_argument("--length", type=int, default=9)
     ap.add_argument("--out", default="fold_sets/rq3_variants.csv")
     args = ap.parse_args()
@@ -85,13 +90,16 @@ def main() -> None:
 
     rows, missing = [], []
     for allele in args.alleles:
-        seeds = starts.get(allele, [])[:args.n_seeds]
+        avail = starts.get(allele, [])
+        seeds = avail[args.seed_offset:args.seed_offset + args.n_seeds]
         if len(seeds) < args.n_seeds:
-            missing.append(f"{allele} ({len(seeds)} of {args.n_seeds})")
+            missing.append(f"{allele} ({len(seeds)} of {args.n_seeds} from "
+                           f"offset {args.seed_offset}; {len(avail)} available)")
         if not seeds:
             continue
         locus = f"hla-{allele.split('*')[0][-1].lower()}"
-        for si, (slug, wt) in enumerate(seeds):
+        for k, (slug, wt) in enumerate(seeds):
+            si = k + args.seed_offset
             # wild type once per seed, as the reference for every variant from it
             rows.append(["wt", locus, slug, wt, f"seed{si}"])
             for pos in range(args.length):
