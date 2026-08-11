@@ -949,11 +949,341 @@ optimistic — which makes the negative result stronger, not weaker, since seque
 wins anyway. Raw pooled figures are AF3 0.765, AF2 0.707, ESMFold2 0.659,
 Boltz 0.646.
 
-**And none of these models is fine-tuned.** The claim RQ1 supports is that
+**None of these four models is fine-tuned.** The claim this table supports is that
 *off-the-shelf structural confidence* does not outperform sequence. Motmaen et al.
-show that fine-tuning closes most of the gap, reaching 0.97 on Class I. A fine-tuned
-comparison has been requested from a colleague who has one; if it materialises it
-would bound the result properly, and if not this limitation must be stated
-explicitly wherever RQ1 is reported. Note also that AF3's weights terms of use
+report 0.97 on Class I by fine-tuning. That comparison has since been run directly —
+see the 7-10 August section — and the short version is that fine-tuning adds a
+reliable +0.09 wherever the allele is familiar and nothing at all on the
+motif-isolated alleles of this panel. Note also that AF3's weights terms of use
 prohibit using its output to train models intended for commercial application, so
 AF3 stays evaluation-only regardless.
+
+## 6-10 August — the fine-tuned comparison, RQ3, and two corrections
+
+### RQ3 sequence half: anchor positions yes, residue preferences only partly
+
+`scripts/rq3_sequence_landscape.py`. Saturation mutagenesis of the sequence model
+across seven alleles chosen as representatives of distinct motif classes
+(`scripts/select_rq3_alleles.py`, average-linkage clustering on pairwise
+Jensen-Shannon PWM distance, k=8, one representative per class by held-out count).
+
+| comparison | result |
+|---|---|
+| position-sensitivity agreement with the PWM | median rho **+0.817** |
+| full landscape agreement | median rho **+0.541** (0.427-0.601) |
+| model's top-2 positions within the IC-derived anchors | **6/7 alleles** |
+
+Benny's hypothesis from the 6 August meeting — that the sequence learner is largely
+recovering the motif — holds in a specific form: the model recovers the *positional
+structure* of the motif very well and the *per-residue preferences* only partly.
+That is consistent with 30,465 parameters shared across 123 alleles via a 34-mer
+pseudosequence.
+
+**The architecture makes this sharper than it looks.** `PresentationNet` max-pools
+over its convolution output, so the peptide path carries no absolute position
+information — it can detect a local pattern but not where it occurred. Anchors
+emerging at P2 and the C-terminus for six of seven alleles therefore shows they are
+recoverable from composition and local trigram context alone.
+
+Two alleles are informative. HLA-A\*26:01 first looked like a disagreement, model
+[1,2] against the PWM's [2,9] — but its IC profile is 1.89/1.88/1.90 at P1/P2/P9, a
+three-way tie, and `derive_anchors.py` gives it three anchors. The model picked two
+of them; the top-2 PWM comparison was the thing at fault. HLA-A\*03:01 is the one
+genuine error, model [1,9] against derived [2,9], with IC 0.92 at P1 against 1.36 at
+P2.
+
+**A panel-selection note.** A\*02:01 and C\*03:04 are forced. Without the latter the
+selection rule prefers data volume and takes A\*24:02 from the HLA-C-dominated
+class, leaving no HLA-C at all — the confound in yet another guise. B\*08:01 emerged
+independently, as Benny suggested. Note C\*03:04 has the lowest motif isolation in
+the study (nn_dist 0.005), so it represents the locus but not the isolated-allele
+problem.
+
+### RQ3 structural half: seeds disagree, but the B\*08:01 prediction held
+
+2,064 ESMFold2 folds — 4 alleles x 3 seeds x 9 positions x 19 substitutions plus
+wild-type references, scored by interface PAE differenced against each seed's wild
+type (`scripts/build_rq3_variants.py`, `scripts/rq3_compare_landscapes.py`).
+
+**Seed stability is the governing result.** Median seed-to-seed agreement **+0.168**,
+with negative minima for A\*02:01 (−0.086) and C\*03:04 (−0.137). Three landscapes of
+the same allele from different starting peptides barely correlate, so most of what a
+single-seed landscape contains is peptide-specific rather than allele-specific.
+
+| allele | seed rho | struct anchors | derived | landscape rho |
+|---|---|---|---|---|
+| HLA-A\*02:01 | +0.144 | [9, 2] | [2, 9] | +0.262 |
+| HLA-B\*08:01 | **+0.533** | **[5, 9]** | [2, 5, 8, 9] | +0.529 |
+| HLA-B\*57:01 | +0.191 | [9, 2] | [2, 9] | +0.413 |
+| HLA-C\*03:04 | +0.104 | [2, 3] | [2, 9] | +0.088 |
+
+**The B\*08:01 prediction held.** The sequence half predicted that if the structural
+landscape peaked at P5 there, the two model types have found different things. P5
+ranks first in structural sensitivity, against the sequence model's [9, 2]. P5 is a
+derived anchor and the position Chris Thorpe's MSA rebalancing targets. B\*08:01 is
+also the only allele with usable seed stability, so the clearest signal comes from
+the most reliable measurement rather than from noise.
+
+Structural anchor recovery is worse than sequence: 2 of 4 alleles have their top-2
+outside the derived anchors, against 6 of 7 for the sequence model.
+
+**Report as preliminary.** Three seeds is not enough for three of the four alleles,
+and the sequence landscapes were averaged over 12 seeds against the structural three,
+so the cross-model correlations are not like-for-like. Seeds 4-6 were folded
+subsequently; `build_rq3_variants.py` gained `--seed-offset` so the extension pools
+without collision.
+
+### SHAP: no more stable than a landscape, and the two agree
+
+`scripts/rq3_shap.py`. Exact Shapley values — 512 coalitions per 9mer, so no sampling
+approximation — with each position marginalised against 64 peptides drawn from the
+allele's own held-out set rather than masked with a padding token.
+
+The hypothesis was that SHAP would be more seed-stable than a mutational landscape,
+since it marginalises over a background rather than conditioning on one seed peptide.
+**It is not**: median seed agreement **+0.186** against the landscape's +0.168, with
+negative minima on every allele (one at −0.833).
+
+But the two methods agree well with each other — median rho **+0.633**, same top-2
+positions for 5 of 7 alleles. So they measure the same thing consistently; that thing
+is genuinely peptide-specific.
+
+The reading: which position matters most depends on what sits at the others, which
+fits a kernel-3 convolution with max-pooling, where local context is built in.
+**Averaging over seeds is therefore necessary rather than optional, and
+single-peptide attribution studies would be unreliable for this model class.** That
+is a methodological result alongside the biological one.
+
+SHAP recovers the derived anchors for 4/7 alleles against the landscape's 6/7, and
+A\*02:01 gives [2,4] where P4 is not an anchor — but seed agreement there is +0.228,
+so that top-2 is not stable enough to interpret.
+
+### The fine-tuned comparison: allele composition, not decoy construction
+
+Motmaen et al. published their fine-tuned parameters and training splits.
+`scripts/check_motmaen_overlap.py` gives **0 exact allele-peptide pairs across all
+360 complexes** and **1 peptide** appearing anywhere in `combo_1and2_train/valid` —
+cleaner than any external baseline tested, since MHCflurry overlapped on 121/144 and
+NetMHCpan's training data is not public. Leakage would also push the wrong way.
+
+Their weights through our pipeline, across four benchmarks:
+
+| benchmark | alleles | vanilla | fine-tuned | gain |
+|---|---|---|---|---|
+| their test set (published figures) | 32 | 0.877 | 0.967 | **+0.090** |
+| affinity set, measured non-binders | 3 common | 0.813 | 0.916 | **+0.103** |
+| fold set v2, anchor-matched | same 3 | 0.787 | 0.878 | **+0.091** |
+| fold set v4, anchor-matched | 9 motif-isolated | 0.698 | 0.685 | **−0.013** |
+
+Isolating each variable by holding the other fixed:
+
+- **decoy construction**, alleles fixed: 0.916 → 0.878, a cost of **0.038**
+- **allele composition**, decoys fixed: 0.878 → 0.685, a cost of **0.193**
+
+**Allele composition matters roughly five times more than decoy construction.**
+Fine-tuning delivers a consistent +0.09 to +0.10 wherever the allele family is
+familiar and nothing on motif-isolated alleles.
+
+That is corroborated directly: on our panel the fine-tuned model gives **0.894 on the
+five alleles present in their Class I test set against 0.619 on the ten absent**.
+Their evaluation covers 5 of our 15 and **no HLA-C at all**. This is the coverage
+finding from a third independent direction — first the Atlas-versus-affinity
+comparison, then all of IEDB, now the evaluation set of the leading fine-tuned
+method.
+
+Training exposure and template availability are partly confounded, since all folds
+used templates from `1k5n_alignments.tsv` (B\*27:05, which scores 1.000). But four
+alleles dissociate them and both favour exposure: A\*29:02 is in their test set with
+no matching template and scores 0.993; B\*37:01 is absent with a template available
+and scores 0.444.
+
+**The pipeline reproduces**, so these are our numbers to trust: 400 nonamers from
+their own test set give 0.927 through our pipeline against their published 0.967, the
+0.04 shortfall attributable to our canonical sequences truncated to 181 rather than
+their exact `chainseq`, a subsample, and one shared template alignment.
+
+**And a sequence method beats it in their own evaluation.** NetMHCpan-4.1 scores
+0.985 on their test set against the fine-tuned model's 0.967.
+
+Decoy construction still differs — their `mismatches` column shows decoys differing
+from the binder by 4-5 substitutions in 91% of cases, ours are anchor-matched — but
+on matched alleles it costs 0.038, not the 0.23 first claimed.
+
+### Reproduction notes for `alphafold_finetune`
+
+Runs inside the ColabFold 1.5.5 Singularity image (JAX 0.4.20, haiku 0.0.10), not the
+pinned requirements — those specify `jaxlib 0.1.75+cuda11.4`, predating Ada support,
+plus `numpy==1.21.0` and `torch==1.10.1`, neither of which has a cp310 wheel.
+
+Seven API-rename patches bridge roughly two years of JAX and haiku churn; all are
+documented renames with exact equivalents and none alters numerics
+(`patches/alphafold_finetune_modernise.patch`):
+
+- `np.int/float/bool` → builtins (removed in NumPy 1.24)
+- `Bio.Data.SCOPData` → `Bio.Data.PDBData` (Biopython 1.80)
+- `jax.ops.index_add` → `.at[].add()` (JAX 0.2.22)
+- `hk.vmap.require_split_rng = False` (haiku 0.0.10)
+- `jax.tree_*` → `jax.tree_util.tree_*`, `tree_multimap` folded into `tree_map`
+
+Targets are **two chains, MHC truncated to 181 plus the peptide**, unlike HISTOFold's
+three chains at 274. The 181 comes from the alignment file's declared `target_len` of
+190; getting it wrong does not error, it silently misaligns against the template. One
+alignment file serves every 9mer target because the mapping is pure positional
+identity, which is what `--ignore_identities` licenses.
+
+`run_prediction.py` discards the `BinderClassifier` coefficients (slope −7.90,
+intercepts 0.804/0.434), so the output is raw interface PAE rather than a calibrated
+probability. Fine for AUROC. About 4 s per complex after a 40 s compilation.
+
+### RQ2 configuration nine: the gated ensemble
+
+`scripts/rq2_gate.py`. Three gates computable at inference time — distance from the
+allele's median sequence score, binary entropy of the sequence probability, and
+anchor information content — combined through an interaction term, leave-one-allele-
+out, against a z-scored sequence baseline so the transformation is not credited to
+the gate.
+
+| gate | AUROC | vs sequence | shuffled control |
+|---|---|---|---|
+| margin | 0.957 | +0.027 [−0.006, +0.066] | 0.956 |
+| entropy | 0.957 | +0.028 [−0.006, +0.065] | 0.957 |
+| anchor IC | 0.962 | +0.033 [−0.001, +0.070] | 0.962 |
+| ungated | 0.958 | +0.028 [−0.005, +0.065] | — |
+
+**Every gate matches its own permutation control exactly**, and all three match
+ungated stacking. Any gain comes from combining rather than from gating. The closest
+approach to a positive in RQ2 arrives with its own mechanism disproved. Structure
+alone reaches 0.916 here because AF3 and AF2 are z-scored together, which is why this
+is the tightest configuration — not because gating works.
+
+### Error overlap: the models fail on partly different complexes
+
+`scripts/rq2_error_overlap.py`, 216 complexes, five models, margins computed within
+allele.
+
+Sequence versus structure gives a median margin correlation of **+0.223** and a
+worst-quartile Jaccard of **0.220** against a chance baseline of 0.143. Above chance
+but far from redundant.
+
+**This corrects the earlier account of RQ2's null.** "Whatever structure encodes,
+sequence already has" is not supported: complementary signal demonstrably exists and
+nine combination strategies still extracted nothing from it. Sample size is the
+likelier explanation, consistent with the gated ensemble matching its own permutation
+control.
+
+Structural models agree with each other more than with sequence — ESMFold2/Boltz
++0.524, AF3/ESMFold2 +0.398, against +0.169 to +0.263 for any structure-sequence
+pair. The two families make distinct kinds of error.
+
+**Asymmetry**, at each model's own best operating point (Youden's J, scores
+standardised within allele):
+
+| model | AUROC | sens | spec | gap |
+|---|---|---|---|---|
+| sequence | 0.930 | 0.944 | 0.852 | +0.093 |
+| AF3 | 0.858 | 0.852 | 0.787 | +0.065 |
+| AF2 | 0.842 | 0.880 | 0.704 | +0.176 |
+| ESMFold2 | 0.805 | 0.861 | 0.676 | +0.185 |
+| Boltz | 0.745 | 0.898 | 0.556 | +0.343 |
+
+Every model is better at recognising binders than rejecting decoys, and the gap
+tracks weakness — Boltz calls 90% of binders correctly but rejects only 56% of
+decoys. **The structural deficit is specifically decoy rejection**, which follows
+from anchor-matched decoys genuinely fitting the groove, and connects to the
+fine-tuned result. This runs *opposite* to the pMHC-II claim
+(biorxiv 2024.10.06.616783) that structure identifies binders better while sequence
+filters non-binders better.
+
+**A methodological trap worth recording.** The first version of this test decomposed
+AUROC into mean binder and mean decoy margins. That cannot work: both count the same
+pairwise comparisons grouped differently and are identical whenever the classes are
+balanced. Verified empirically — all five models returned gaps of ±0.000. A
+threshold-based decomposition is required.
+
+### Structural consistency: a fifth readout, below the other four
+
+`scripts/structural_consistency.py`, motivated by Kim et al. (Sci Rep 2024) reporting
+that complex stability predicts immunogenicity better than affinity does.
+
+| feature | AUROC (z-scored) |
+|---|---|
+| `pae_asymmetry` | 0.656 |
+| `plddt_peptide_std` | 0.584 |
+| `pae_peptide_std` | 0.565 |
+| `plddt_anchor_gap` | 0.471 |
+
+Against representations 0.834, PAE 0.804, confidence 0.753, geometry 0.492 and
+sequence 0.930. A fifth independent way of reading these folds lands below the other
+four, which makes RQ1's conclusion harder to attribute to feature choice.
+
+`plddt_anchor_gap` is the informative failure: binders show an anchor-versus-rest
+pLDDT gap of 8.03 and decoys 7.89 — both have their anchors modelled better than the
+peptide middle, to the same degree, because the decoys satisfy those anchors by
+construction.
+
+**This is not the quantity Kim et al. measure.** Theirs is an experimentally measured
+complex half-life, and measured stability data does not exist for these alleles —
+the coverage gap in a third form. Per-residue pLDDT comes from the CIF `b_factor`
+column; ESMFold2's `metrics.json` holds only scalar `complex_plddt` and a single
+sample, so no cross-sample variance is available.
+
+### How much of the sequence result is the selection criterion
+
+The circularity documented on 3 August applies to our own model too, since fold sets
+v2 and v4 are PWM-selected. Quantified:
+
+| fold set | PWM alone | ours | rho | ours − PWM |
+|---|---|---|---|---|
+| v2 | 1.000 | 0.921 | 0.690 | −0.079 |
+| v4 | 1.000 | 0.930 | 0.739 | −0.070 |
+| affinity | 0.938 | 0.921 | 0.771 | −0.017 |
+| 3-allele subset of v2 | 1.000 | 0.995 | 0.852 | −0.005 |
+
+**A model recovering the selection criterion would match it.** Ours is 0.07-0.08
+below on both PWM-selected sets, and gives the same 0.921 on the affinity set where
+the PWM only reaches 0.938. Performance stable across benchmarks of very different
+PWM separability is what one expects of a model not riding the selection rule.
+
+The three-allele subset is the outlier and should not be quoted alone. This table
+belongs in the Results chapter rather than the limitations, since it answers the
+circularity objection directly.
+
+### Verification of the headline numbers
+
+Six independent checks, all passing:
+
+| check | result |
+|---|---|
+| labels against the fold sets | 0 mislabelled across five models |
+| identical complexes scored | 216 common, no duplicates |
+| sequence model reproduces | 0.930 from a clean reload |
+| PAE sign direction | binders lower for all four architectures |
+| split integrity | 52,768 held-out 9mer positives, 0 fold-set binders outside |
+| bootstrap stability | +0.073 [+0.022, +0.125] and +0.074 [+0.022, +0.129] |
+
+### Corrections made in this period
+
+Three, all from drafting a conclusion before verifying the diagnostic behind it. All
+are in the git history rather than silently amended.
+
+**The v4/v2 allele mismatch.** A decoy-construction comparison put the fine-tuned
+model's drop at 0.231 by comparing v4 structural results against v2 sequence results.
+Isolating the variables gives 0.038 for decoys and 0.193 for alleles — the opposite
+emphasis, and a stronger equity result.
+
+**The PWM diagnostic index bug.** PWM scores were computed per allele in group order
+but assigned to rows in original order, inverting HLA-B\*07:02 (binders +3.11, decoys
++12.64) and producing a meaningless 0.779. The corrected figure is 1.000, which
+reverses what that diagnostic had been used to argue.
+
+**The rank-based asymmetry decomposition**, described above, which cannot separate
+the two error directions at all.
+
+### Naming schemes, now five
+
+A running count, because this has caused silent mislabelling in three separate
+scripts: HISTOFold v2 `{slug}_{peptide}`; v3 `{tag}__{slug}__{peptide}`; v4
+`NA__{slug}__{peptide}` with the peptide lowercased; `fold_esmfold2.py`
+`{tag}__{slug}__{PEPTIDE}` with the case preserved from the CSV; and AF3, which
+appends `_YYYYMMDD_HHMMSS` when the output directory already exists. **Labels must
+always come from the fold-set CSV, never from the directory name.**
