@@ -1441,3 +1441,21 @@ features that turned out to be measuring the classifier rather than fold quality
 peptide-count correlation that was a sampling artefact of panel selection; the
 rank-transformation lift that made a null look like +0.026; and now this. Each would
 have produced a false or inflated positive if left unexamined.
+### Why regeneration was tested and rejected
+
+The decision not to regenerate was checked rather than assumed. Rebuilding the
+labelled table with the deduplicated pool and rerunning `make_split.py` at the same
+seed gives a validation set sharing only **10.3%** of its pairs with the current one
+(17,321 of 167,655) — the split is computed over the full table, so changing the
+negatives changes the clustering throughout.
+
+The fold sets do not survive it. Under the new split only **18 of 72** fold set v2
+binders and **12 of 108** fold set v4 binders remain held out, so 89% of v4's binders
+would become training data for a retrained model. Regeneration therefore requires
+rebuilding both fold sets and refolding all 360 complexes across five architectures,
+not simply retraining.
+
+That is disproportionate for a confound whose size is now measured and which does not
+reach the fold-set results. The corrected `prepare_atlas.py` is committed and unused;
+regeneration is the first item in future work, where it should be done together with
+rebuilding the benchmarks.
