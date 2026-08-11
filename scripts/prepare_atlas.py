@@ -141,7 +141,7 @@ def negatives_peptide_pool(pos: pd.DataFrame, ratio: float,
                            rng: random.Random) -> pd.DataFrame:
     """Negatives = peptides seen for OTHER alleles, bucketed by length."""
     by_len: dict[int, list[str]] = {}
-    for pep in pos["peptide"]:
+    for pep in sorted(set(pos["peptide"])):
         by_len.setdefault(len(pep), []).append(pep)
 
     rows = []

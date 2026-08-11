@@ -1287,3 +1287,157 @@ scripts: HISTOFold v2 `{slug}_{peptide}`; v3 `{tag}__{slug}__{peptide}`; v4
 `{tag}__{slug}__{PEPTIDE}` with the case preserved from the CSV; and AF3, which
 appends `_YYYYMMDD_HHMMSS` when the output directory already exists. **Labels must
 always come from the fold-set CSV, never from the directory name.**
+## 11 August — a sampling artefact in the training negatives
+
+Found while verifying Methods against the code rather than against the plan, which
+is the reason to write that way round.
+
+### The mechanism
+
+`negatives_peptide_pool` in `prepare_atlas.py` built its sampling pool as a
+**multiset**:
+
+```python
+for pep in pos["peptide"]:                    # every row, not every peptide
+    by_len.setdefault(len(pep), []).append(pep)
+...
+pep = rng.choice(pool)
+```
+
+A peptide observed for twelve alleles is appended twelve times, so `rng.choice` draws
+it twelve times as often. Promiscuously presented peptides are therefore
+over-represented among the negatives — which is backwards, since those are exactly
+the peptides most likely to be genuine ligands of some allele.
+
+The consequence, measured by `crossover_label_balance.py`: **peptide identity alone,
+with no allele information at all, scores AUROC 0.248 on the validation set.** That
+is 0.25 from chance and inverted — a classifier that knows only which peptide it is
+looking at can beat chance by predicting the opposite of what it learns.
+
+**The pooled validation figure of 0.9732 is therefore inflated and should not be
+reported as a clean estimate of pan-allele performance.**
+
+The fix is one line — `for pep in sorted(set(pos["peptide"]))` — with `sorted()` for
+determinism, given the split-order bug of 27 July.
+
+### Why the fix is committed but not applied
+
+Regenerating the labelled table changes the negatives, which changes the split, which
+changes every fold set, which would mean refolding 360 complexes across four
+architectures plus the fine-tuned model. That is disproportionate for a confound
+whose size is now measured, and it would invalidate results that do not depend on it.
+
+The current `data/processed/atlas_labelled.csv` therefore still contains
+multiset-drawn negatives. **Regeneration is the first item in future work.** Any
+figure computed from the validation split carries this caveat; figures computed from
+the fold sets do not, for the reasons below.
+
+### A second property of the split, found in the same audit
+
+`scripts/audit_dataset.py` also quantifies cross-allele crossover. `hamming_cluster`
+clusters *within* allele, so a peptide can appear in training under one allele and in
+validation under another:
+
+| | |
+|---|---|
+| training rows | 670,999 |
+| validation rows | 167,655 |
+| unique validation peptides | 121,676 |
+| also in training under **any** allele | **103,791 (85.3%)** |
+| within Hamming identity >= 0.8 of a training peptide | 105,986 (87.1%) |
+
+This is a defensible design choice — a different groove is a different prediction
+problem, and a pan-allele model is meant to generalise across alleles rather than
+memorise peptides — but 85.3% is high enough that it must be stated rather than left
+implicit.
+
+**The two findings are one mechanism seen twice.** If promiscuous peptides are
+over-drawn as negatives *and* 85% of validation peptides also appear in training,
+then a model can learn "this peptide is usually a negative" independently of allele.
+The peptide-only classifier at 0.248 is that effect measured directly.
+
+The audit also settles a question the repository did not record: negatives are **100%
+present in the Atlas**, confirming the file was built with `--neg-mode peptide-pool`
+rather than `proteome`. That makes the benchmark a test of *cross-allele motif
+discrimination* rather than presented-versus-not — the same scoping point the
+anchor-matched fold sets carry, arrived at independently. Note the README described
+proteome as the intended mode while its quickstart used peptide-pool; that
+inconsistency is corrected.
+
+### Does it reach the HLA-C finding?
+
+This is the question that matters, because the HLA-C motif-isolation result is the
+project's equity claim. Three tests, increasing in strength
+(`confound_vs_per_allele.py`, `hlac_partial_effect.py`).
+
+**Confound strength correlates with performance, positively.** Across 123 alleles,
+|prior AUROC − 0.5| against per-allele model AUROC gives **rho +0.302, p 0.0007**. So
+more confounded alleles score higher, and the artefact inflates rather than depresses.
+
+**HLA-C is the least confounded locus:**
+
+| locus | mean confound strength | mean model AUROC | n |
+|---|---|---|---|
+| HLA-A | 0.235 | 0.970 | 36 |
+| HLA-B | 0.249 | 0.975 | 63 |
+| **HLA-C** | **0.202** | **0.940** | 24 |
+
+So the artefact inflated HLA-A and HLA-B *more* than HLA-C. Part of the apparent
+HLA-C deficit is therefore differential inflation elsewhere rather than depression of
+HLA-C itself — and correcting for it should shrink the effect, not remove it.
+
+**It survives, and two independent methods agree to three decimals.**
+
+OLS of per-allele AUROC on locus dummies with confound strength in the model:
+
+| term | coefficient | p |
+|---|---|---|
+| const | 0.9488 | — |
+| locus_B | +0.0044 | 0.29 |
+| **locus_C** | **−0.0267** | **<0.0001** |
+| confound | +0.0886 | 0.0057 |
+
+Matched comparison, 23 HLA-C alleles against A/B controls within ±0.03 of confound
+strength — no functional-form assumption:
+
+**−0.0269, 95% CI [−0.0389, −0.0149], t −4.39, p 0.0002**
+
+−0.0267 from a parametric model and −0.0269 from a matched design is about as much
+agreement as this kind of check produces.
+
+**And it reproduces on a benchmark that never touches the peptide pool.** Fold set v2
+draws its decoys by anchor matching against the target's own motif rather than by
+sampling from presented peptides, so the multiset artefact cannot reach it. The HLA-C
+result holds there too (`foldset_survival_check.py`).
+
+### What this changes, and what it does not
+
+**Affected.** The pooled validation AUROC of 0.9732, and any per-allele figure
+computed from `per_allele_auroc.csv`. Report these with the caveat, or with the
+attenuated effect size.
+
+**Not affected.** Everything computed on the fold sets — RQ1's four-architecture
+comparison, RQ2's nine configurations, the fine-tuned comparison, RQ3, and the
+external baselines. Those use anchor-matched or affinity-measured decoys, neither of
+which is drawn from the peptide pool.
+
+**The HLA-C claim stands** but should be stated as attenuated rather than
+uncorrected, with the −0.027 figure and both tests cited.
+
+### Scripts added in this audit
+
+- `audit_dataset.py` — which negative mode produced the file, and how much
+  cross-allele crossover the split permits
+- `crossover_label_balance.py` — the peptide-identity-only classifier, source of the
+  0.248
+- `confound_vs_per_allele.py` — does the confound reach the per-allele distribution
+- `hlac_partial_effect.py` — three tests of whether the HLA-C effect survives
+- `foldset_survival_check.py` — whether the finding reproduces on fold set v2
+
+### The fourth confound caught in this project's own analysis
+
+Worth stating in the Discussion, because the pattern is the point: the fold-quality
+features that turned out to be measuring the classifier rather than fold quality; the
+peptide-count correlation that was a sampling artefact of panel selection; the
+rank-transformation lift that made a null look like +0.026; and now this. Each would
+have produced a false or inflated positive if left unexamined.
