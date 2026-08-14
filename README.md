@@ -4,228 +4,247 @@ COMP0190 / AI4BH 2025–26. Predicts which peptides are presented by HLA class I
 asks whether structural methods help where sequence methods are weakest — that is,
 for the ancestrally diverse alleles that the training data underrepresents.
 
-Exact commands for every result below are in **[REPRODUCE.md](REPRODUCE.md)**, which
-also records the reasoning behind design decisions and the corrections to analyses
-that turned out wrong.
+This README is the usage guide. For results, the reasoning behind design decisions,
+and the corrections to analyses that turned out wrong, see
+**[REPRODUCE.md](REPRODUCE.md)**.
 
-## Research questions
+---
 
-| | | status |
-|---|---|---|
-| **RQ1** | Do structural models beat sequence models for pMHC presentation? | answered — no |
-| **RQ2** | Do sequence and structure combine synergistically? | answered — no |
-| **RQ3** | Does saturation mutagenesis show the two learned the same binding biology? | in progress |
+## Install
 
-Both answers are negative and both are better powered than the positive claims in
-the literature they contradict.
+Beta or any Linux box with a CUDA GPU. Analysis runs on CPU; only folding needs the
+card.
 
-## RQ1 — sequence beats every structural model
-
-Fold set v4: 216 complexes, 9 motif-isolated alleles, 12 canonical binders and 12
-anchor-matched decoys each. Per-allele z-scored anchor PAE, paired bootstrap.
-
-| model | AUROC | sequence − structure |
-|---|---|---|
-| **sequence (ours)** | **0.930** | — |
-| AlphaFold 3 | 0.858 | +0.073 [+0.022, +0.125] |
-| AlphaFold 2 (HISTOFold) | 0.842 | +0.088 [+0.031, +0.149] |
-| ESMFold2 | 0.805 | +0.124 [+0.066, +0.187] |
-| Boltz-2.1 | 0.745 | +0.185 [+0.119, +0.257] |
-
-Every interval excludes zero, and the ordering tracks model recency exactly — AF3
-has roughly halved Boltz's deficit, but the newest and strongest still loses.
-Per-allele z-scoring is transductive and so flatters structure; raw pooled figures
-are 0.765 / 0.707 / 0.659 / 0.646, and the conclusion is unchanged.
-
-**It is not an artefact of which output we read.** Four independent readouts of the
-same folds, on fold set v2 (144 complexes, 6 alleles, sequence 0.921):
-
-| readout | AUROC |
-|---|---|
-| learned representations (frozen AF2 embeddings + classifier) | 0.834 |
-| predicted aligned error, anchor-localised | 0.804 |
-| confidence metrics (peptide-region pLDDT) | 0.753 |
-| interface geometry (contacts, burial, anchor distances) | 0.492 |
-
-**Fold quality is not the ceiling**, on four independent lines: confidence does not
-distinguish correctly from incorrectly ordered complexes within a model; accuracy
-and discrimination are inversely ordered across models; improved MSAs give better
-structures but no detectable change in discrimination; and King et al.
-(arXiv:2512.06592) found the same by retraining on experimental structures.
-
-**Fine-tuning does not rescue it on a hard benchmark.** Motmaen et al. (PNAS 2023)
-published fine-tuned parameters; the overlap against our fold sets is clean (0 exact
-allele–peptide pairs across 360 complexes).
-
-| | our fold set v4 | their published test set |
-|---|---|---|
-| fine-tuned AlphaFold | 0.685 | 0.967 |
-| vanilla AlphaFold | 0.698 | 0.877 |
-| NetMHCpan-4.1 | — | 0.985 |
-
-Their column reproduces at 0.967, so the difference is the benchmark rather than the
-pipeline: their decoys differ from the binder by 4–5 substitutions in 91% of cases,
-ours are anchor-matched. Fine-tuning gains +0.090 on their set and −0.013 on ours,
-so its benefit is a function of decoy difficulty. Note also that in their own
-evaluation a sequence method scores above the fine-tuned structural one.
-
-## RQ2 — no combination strategy helps
-
-Eight configurations, two panels, four architectures, four feature types. Every
-paired-bootstrap interval spans zero.
-
-| configuration | Δ vs sequence |
-|---|---|
-| linear stack, v2, 21 features | −0.046 [−0.105, +0.011] |
-| linear stack, v2, AF2 PAE only | +0.006 [−0.043, +0.056] |
-| linear stack, v4, three architectures | −0.022 [−0.061, +0.017] |
-| **linear stack, v4, per-allele z-scored** | **−0.001 [−0.037, +0.037]** |
-| linear stack, v4, mixed output types | −0.024 [−0.063, +0.013] |
-| linear stack, v4, including AF3 | −0.019 [−0.057, +0.017] |
-| rank average, like-for-like | +0.009 [−0.006, +0.024] |
-| gradient boosting vs sequence-only GB | +0.003 [−0.018, +0.022] |
-
-The z-scored run is decisive: structure alone reaches **0.857**, within 0.064 of
-sequence, and combining still gives −0.001. The failure is **redundancy, not
-weakness** — whatever the folding models encode, the sequence model already has.
-
-Two confounds were found and controlled, either of which would have produced a false
-positive:
-
-- **Ceiling effect.** Per-allele benefit is perfectly monotone in sequence weakness —
-  the pattern King et al. report as complementarity — but correlates with
-  sequence-only AUROC (rho −0.899, p 0.015) and not with structure-only AUROC
-  (rho +0.600, p 0.21). Benefit tracks headroom, not structural quality.
-- **Rank-transformation confound.** A rank average appeared to give +0.026, the only
-  positive across eight configurations. Per-allele ranking alone lifts the sequence
-  model from 0.930 to 0.946; like-for-like the gain is +0.009 and spans zero.
-
-The ensemble code recovers +0.042 from planted synergy on synthetic data, so this is
-a demonstrated null rather than a blind test.
-
-## Data coverage — a finding independent of either question
-
-**The gap is in negatives, not positives.** Across all of IEDB (5,770,781 assay rows,
-303 HLA alleles), restricted to alleles with ≥100 positive 9mers:
-
-| locus | median negatives per positive | alleles studied |
-|---|---|---|
-| HLA-A | **0.166** | 44 |
-| HLA-B | 0.0084 | 64 |
-| HLA-C | 0.0074 | 21 |
-
-HLA-C is *not* positive-poor — several alleles have thousands of known ligands and
-the median positive count exceeds HLA-A's. Mass spectrometry is untargeted and yields
-only positives; binding assays require choosing a peptide, and those choices followed
-research attention toward HLA-A. The same disparity appears by data type: median
-9mers per allele are 1583 / 1356 / 1760 by mass spectrometry against 1357 / 35 / 23
-by binding affinity.
-
-For HLA-C\*15:05 and HLA-C\*16:02 there are **zero** experimentally determined
-non-binders in the whole of IEDB. Constructed decoys are therefore a necessity rather
-than a convenience, and the equity question cannot currently be answered with
-experimentally grounded negatives by anyone.
-
-## What predicts per-allele performance
-
-Across all 123 alleles, against validation-split AUROC:
-
-| predictor | rho | p |
-|---|---|---|
-| anchor information content | **+0.660** | 1.1e-16 |
-| motif nearest-neighbour distance | **−0.363** | 3.7e-05 |
-| log₁₀(peptide count) | −0.020 | 0.82 |
-
-Sample size does not predict performance; motif distinctiveness does. The
-motif-distance correlation is stable under thresholding on peptide count, so it is
-not confounded with sparsity.
-
-**Anchor conventions.** 43% of alleles have a high-information position outside the
-standard P2 / C-terminus scheme (HLA-A 75%, HLA-C 42%, HLA-B 25%). Defining anchors
-per allele from information content yields the best structural feature for **six**
-independent measurements — AF2 on two panels and two MSA versions, ESMFold2, Boltz
-and AF3 — once between-allele scale is removed.
-
-## Benchmark limitations
-
-Both are quantified rather than merely noted, and both are in the write-up.
-
-**Selection circularity.** Fold-set binders are the top decile of the Motif Atlas PWM
-score, so a PWM alone separates fold set v2 at AUROC 1.000. Across five sequence
-models, coupling to that criterion tracks AUROC almost perfectly (Spearman ≈ 0.9):
-
-| model | rho(PWM, score) | AUROC |
-|---|---|---|
-| MixMHCpred 3.0 | 0.909 | 0.999 |
-| NetMHCpan-4.1 | 0.773 | 0.961 |
-| MHCflurry affinity | 0.718 | 0.911 |
-| **ours** | **0.690** | **0.921** |
-| MHCflurry presentation | 0.621 | 0.841 |
-
-MixMHCpred's 0.999 is circular rather than impressive, and NetMHCpan's edge over our
-model is largely that alignment. Ours is the only model meaningfully above the trend
-line. This does not bite RQ1 the same way, since the structural models never see the
-Atlas — if anything it biases toward sequence.
-
-**Statistical power.** Between-allele variation in per-allele AUROC has sd 0.024
-across 123 alleles; fold-set AUROC from 12 binders and 12 decoys has a standard error
-near 0.075. Attenuation caps any observable between-allele correlation near 0.3, so
-per-allele questions — including whether structural benefit tracks motif isolation —
-are underpowered by roughly an order of magnitude in complexes per allele. Pooled
-figures and within-allele paired comparisons are unaffected.
-
-## Pipeline
-
-```
-MHC Motif Atlas ──► prepare_atlas.py ──► labelled set (838k rows, 123 alleles)
-                          │
-        ┌─────────────────┴───────────────────┐
-        ▼                                     ▼
-  sequence model                    panel + fold-set selection
-  (PyTorch, pan-allele)             v2: 6 alleles · v4: 9 by motif isolation
-        │                                     │
-        │         ┌───────────┬───────────┬───┴───────┬──────────────┐
-        │         ▼           ▼           ▼           ▼              ▼
-        │    ESMFold2      Boltz-2.1   AF2/HISTO    AF3      fine-tuned AF2
-        │         └───────────┴───────────┴───────────┴──────────────┘
-        │                                 ▼
-        │            PAE · confidence · geometry · representations
-        └──────────────────► RQ2 ensembles ◄────────┘
-
-  external baselines: NetMHCpan-4.1 · MHCflurry (affinity, presentation) · MixMHCpred
-  coverage analysis:  MHC Motif Atlas × MHCflurry curation × full IEDB export
+```bash
+git clone https://github.com/lakshaa-s/pmhc-present.git
+cd pmhc-present
+conda env create -f environment.yml
+conda activate pmhcpresent
+pip install -e ".[dev,struct,ml]"
+pytest -q                       # ~30 s, should be all green
 ```
 
-## Where things run
+**ESMFold2 needs a second environment**, because `esm` requires Python >=3.12,<3.13
+while `pmhcpresent` runs 3.13:
 
-| Stage | Machine | Environment |
+```bash
+conda create -n esmfold2 python=3.12 -y
+conda activate esmfold2
+pip install esm torch biotite
+```
+
+ESMC-6B (24 GB in the HuggingFace cache) is a required ESMFold2 dependency despite
+appearing nowhere in this codebase. Deleting it triggers a silent 24 GB re-download
+on the next fold.
+
+### Data you must supply
+
+None of it is in git. Put these in place before running anything:
+
+| path | what | where from |
 |---|---|---|
-| Data prep, sequence model, all analysis | Beta (RTX 4090) | `pmhcpresent` |
-| Fold-set and panel selection | Beta | `pmhcpresent` |
-| ESMFold2 folding | Beta | `esmfold2` (Python 3.12) |
-| AF2 via HISTOFold | Beta | ColabFold 1.5.5 Singularity image |
-| AlphaFold 3 | Beta | Singularity image built from `patches/af3.def` |
-| Fine-tuned AF2 (Motmaen et al.) | Beta | ColabFold image + `patches/alphafold_finetune_modernise.patch` |
-| Boltz-2.1 (cloud API) | Mac | `uv` project |
-| Overflow / large downloads | CS lab machines | local `/tmp` (home quota is 10 GB) |
+| `data/raw/all_peptides.txt` | MHC Motif Atlas class I peptides, TSV | mhcmotifatlas.org |
+| `data/pseudoseq/hla_{a,b,c}.json` | 34-mer pocket pseudosequence per allele | IPD-IMGT/HLA, via `histo.fyi` |
+| `data/sequences/hla_{a,b,c}.json` | full canonical HLA sequences, for folding | same |
+| `data/sequences/human_b2m.json` | β2-microglobulin | same |
 
-ESMFold2 needs its own environment: `esm` requires Python >=3.12,<3.13 while
-`pmhcpresent` runs 3.13. ESMC-6B (24 GB in the HuggingFace cache) is a required
-dependency despite appearing nowhere in this codebase — deleting it triggers a silent
-re-download.
+---
 
-## Scripts
+## Running the pipeline
+
+Five stages. Each writes files the next reads, so run them in order the first time.
+
+### 1. Build the labelled dataset
+
+```bash
+python scripts/prepare_atlas.py \
+  --input data/raw/all_peptides.txt \
+  --output data/processed/atlas_labelled.csv \
+  --neg-mode peptide-pool
+```
+
+**In:** Atlas peptide TSV.
+**Out:** `atlas_labelled.csv` — 838,654 rows, 123 alleles, columns
+`peptide, allele, label, length`.
+
+Filters to classical HLA-A/B/C and 8–11mers, normalises allele names to
+`HLA-A*02:01` form, labels presented peptides `1`, and generates length-matched
+negatives.
+
+**Two negative modes, and they are different experiments.** `peptide-pool` draws real
+eluted ligands of *other* alleles, so the benchmark tests cross-allele motif
+discrimination. `proteome` draws random windows from a human proteome FASTA and tests
+presented-versus-not. The committed data was built with `peptide-pool`; see the
+caveat under "Known issues" below.
+
+### 2. Make the train/validation split
+
+```bash
+python scripts/make_split.py \
+  --data data/processed/atlas_labelled.csv \
+  --out data/processed/split_val.csv
+```
+
+**In:** labelled table.
+**Out:** `split_val.csv` — the validation `(allele, peptide)` pairs, 167,655 of them.
+
+Near-duplicate-aware: peptides are Hamming-clustered within allele and whole clusters
+assigned to one side, so a near-identical peptide cannot straddle the split.
+
+**Every script must read this file rather than recomputing a split.** Recomputing
+independently caused up to 42% leakage concentrated in positives before this existed,
+and a later hash-ordering bug made two identical runs disagree by 86 rows. Both are
+fixed; `tests/test_split_determinism.py` guards the second.
+
+### 3. Train and evaluate the sequence model
+
+```bash
+python -m pmhcpresent train \
+  --data data/processed/atlas_labelled.csv \
+  --split data/processed/split_val.csv \
+  --out models/rq1_baseline_split_v2.pt
+
+python scripts/per_allele_auroc.py \
+  --model models/rq1_baseline_split_v2.pt \
+  --out results/per_allele_auroc.csv
+```
+
+**In:** labelled table, split.
+**Out:** checkpoint, and per-allele AUROC for all 123 alleles.
+
+The model (`src/pmhcpresent/models/nn.py`) is a small pan-allele CNN — two branches,
+peptide and 34-mer pseudosequence, 30,465 parameters. It is a baseline rather than a
+contribution, and deliberately untuned.
+
+### 4. Build a benchmark fold set
+
+```bash
+# canonical binders: PWM top decile, then diversified
+python scripts/select_fold_set_canonical.py \
+  --data data/processed/atlas_labelled.csv \
+  --val-split data/processed/split_val.csv \
+  --pseudoseq data/pseudoseq/hla_{a,b,c}.json \
+  --n-alleles 9 --k-peptides 12 --top-frac 0.10 \
+  --out fold_sets/binders_v4.csv
+
+# anchor-matched decoys: carry the target's anchors, score low overall
+python scripts/select_decoys_hard.py \
+  --data data/processed/atlas_labelled.csv \
+  --binders fold_sets/binders_v4.csv \
+  --max-pctile 25 \
+  --out fold_sets/fold_set_v4.csv
+```
+
+**In:** labelled table, split, pseudosequences.
+**Out:** `fold_set_v4.csv` — five columns, `tag,locus,allele_slug,peptide,note`,
+where `tag` is `NA` for binders and `hard` for decoys.
+
+Decoys are real ligands of *other* alleles that carry the target's anchor residues
+but score low against its overall motif, so they cannot be rejected on anchors alone.
+Against motif-mismatched decoys ESMFold2 scores 0.911; against these, 0.700 — about
+two-thirds of the apparent structural signal was anchor recognition.
+
+### 5. Fold, extract features, score
+
+```bash
+# ESMFold2 — ~20 s per complex
+conda activate esmfold2
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -u \
+  scripts/fold_esmfold2.py --csv fold_sets/fold_set_v4.csv \
+  --sequences data/sequences --out esmfold2-v4
+
+# features
+conda activate pmhcpresent
+python scripts/analyse_pae.py esmfold2-v4 \
+  --fold-set fold_sets/fold_set_v4.csv \
+  --anchors data/processed/anchors.json \
+  --out pae_esmfold2_v4.csv
+
+# AUROC against the sequence baseline
+python scripts/auroc_structure.py --pae pae_esmfold2_v4.csv \
+  --sequence-csv results/sequence_v4.csv --out auroc_esmfold2_v4.csv
+```
+
+**In:** fold set, HLA sequences.
+**Out:** one directory per complex containing PAE, structure and metrics; then a
+feature table; then AUROCs.
+
+AlphaFold 3 and the fine-tuned AlphaFold need extra setup — see
+[REPRODUCE.md](REPRODUCE.md), sections for 5 August and 6–10 August.
+
+---
+
+## Known issues
+
+**The validation AUROC is inflated.** `negatives_peptide_pool` built its sampling pool
+as a multiset, so a peptide observed for twelve alleles was drawn as a negative twelve
+times as often. Peptide identity alone scores AUROC **0.248** on the validation set —
+0.25 from chance, inverted. The pooled figure of 0.9732 should therefore not be quoted
+as a clean estimate.
+
+The fix is one line and is committed. **The data has deliberately not been
+regenerated**, because that changes the split, which changes every fold set, which
+would mean refolding 360 complexes across five models. Regeneration is the first item
+in future work.
+
+*This does not reach the fold-set results.* Fold-set decoys are anchor-matched or
+affinity-measured, never drawn from the peptide pool, so RQ1, RQ2, RQ3, the fine-tuned
+comparison and the external baselines are unaffected. The HLA-C finding also survives:
+HLA-C is the *least* confounded locus (0.202 against HLA-A 0.235, HLA-B 0.249), so the
+artefact inflated the others more, and the effect attenuates rather than disappearing —
+OLS with confound in the model gives −0.0267 (p < 0.0001), a matched comparison gives
+−0.0269 (p 0.0002), and it reproduces on fold set v2.
+
+**85.3% of unique validation peptides also appear in training under some allele.** The
+split clusters within allele, so a peptide can be a training example for one allele and
+a validation example for another. Intentional — a different groove is a different
+prediction problem — but worth knowing.
+
+**The fold sets are PWM-separable by construction.** Binders are the PWM's top decile,
+so a PWM alone separates fold set v2 at AUROC 1.000. Any sequence-model figure on these
+sets must be read with that in mind, though our model sits 0.07–0.08 *below* the PWM on
+both selected sets, which is the evidence it is not simply recovering the criterion.
+The structural models never see the Atlas and are unaffected.
+
+**The ablation scripts predate `make_split.py`** and should be rerun before their
+numbers are quoted.
+
+---
+
+## Results in brief
+
+Full tables, confidence intervals and caveats are in [REPRODUCE.md](REPRODUCE.md).
+
+| | | |
+|---|---|---|
+| **RQ1** | Do structural models beat sequence models? | **No.** Sequence 0.930 against AF3 0.858, AF2 0.842, ESMFold2 0.805, Boltz 0.745 on fold set v4. Every paired margin excludes zero. Five feature readouts, five architectures including a fine-tuned one. |
+| **RQ2** | Do they combine synergistically? | **No.** Nine configurations, every interval spanning zero. The models do fail on partly different complexes (margin rho +0.223 against a 0.143 chance baseline), so the null is not simple redundancy. |
+| **RQ3** | Have the two learned the same binding biology? | **Partly.** Both recover anchor positions; the sequence model's top-2 fall inside the IC-derived anchor set for 6/7 alleles. For HLA-B\*08:01 the structural model ranks P5 first where the sequence model does not — and P5 carries more information than P2 for that allele. |
+
+Two findings independent of the research questions:
+
+**The data gap is in negatives, not positives.** Across all of IEDB (5,770,781 assay
+rows), a studied HLA-A allele has roughly one experimentally determined non-binder per
+six positives; HLA-B and HLA-C have roughly one per 120. For HLA-C\*15:05 and
+HLA-C\*16:02 there are **zero**. Constructed decoys are a necessity rather than a
+convenience, and the equity question cannot currently be answered with experimentally
+grounded negatives by anyone.
+
+**Anchor conventions are too rigid.** 43% of alleles have a high-information position
+outside the standard P2/PΩ scheme. Defining anchors per allele from information
+content gives the best structural feature across six independent measurements.
+
+---
+
+## Script reference
 
 **Data and sequence model**
 - `prepare_atlas.py` — atlas positives → labelled table with generated negatives
-- `make_split.py` — the shared train/validation split. **Every script must read this
-  file**; recomputing it independently caused up to 42% leakage concentrated in
-  positives before it existed
+- `make_split.py` — the shared train/validation split; every script reads this file
 - `per_allele_auroc.py`, `plot_per_allele.py` — per-allele AUROC across 123 alleles
 - `derive_anchors.py` — per-position information content; the 43% survey
 - `ablation_a2.py`, `ablation_a2_condB.py`, `ablation_family_condB.py` — starvation
-  and family-removal ablations. *These predate `make_split.py` and should be rerun
-  before their numbers are quoted.*
+  and family-removal ablations *(predate `make_split.py`; rerun before quoting)*
 
 **Panel and fold-set construction**
 - `select_allele_panel.py` — panel v1–v3 (AUROC and anchor-IC stratification)
@@ -234,54 +253,64 @@ re-download.
 - `select_fold_set_canonical.py` — motif-typical binders, PWM top decile
 - `select_decoys_hard.py` — anchor-matched adversarial decoys (`--max-pctile 25`)
 - `select_fold_set_affinity.py` — PWM-free fold set from measured affinities
+- `build_rq3_variants.py` — saturation-mutagenesis variant sets
 
 **Folding**
-- `fold_esmfold2.py` — ESMFold2 on Beta, writes structures and PAE
+- `fold_esmfold2.py` — ESMFold2, writes structures and PAE
 - `build_af3_inputs.py` — AlphaFold 3 JSON inputs with per-chain MSAs
 - `build_finetune_targets.py` — `alphafold_finetune` targets file
-- HISTOFold is a patched third-party fork; see `patches/histofold_singularity.patch`
+- HISTOFold is a patched third-party fork; see `patches/`
 
 **Structural features**
 - `analyse_pae.py`, `analyse_pae_af2.py`, `analyse_pae_af3.py` — anchor-localised PAE
 - `extract_confidence.py` — global and localised confidence, all architectures
 - `extract_geometry.py`, `extract_geometry_af2.py` — interface geometry
 - `rq1_embeddings.py` — learned representations with a light classifier
+- `structural_consistency.py` — consistency features; a fifth readout
 - `auroc_structure.py` — features as classifiers, with direction handling
 
 **Baselines, ensembles and controls**
 - `score_netmhcpan.py`, `score_mhcflurry.py`, `score_mixmhcpred.py`
 - `score_sequence_on_foldset.py` — our model on a fold set, with leakage reporting
-- `rq2_stack.py`, `rq2_ensemble_alt.py`, `rq2_gate.py` — the eight configurations
+- `rq2_stack.py`, `rq2_ensemble_alt.py`, `rq2_gate.py` — the ensemble configurations
+- `rq2_error_overlap.py` — do the model families fail on the same complexes?
 - `bootstrap_auroc.py` — bootstrap CIs and paired differences
 - `fold_quality_control.py` — does confidence predict which complexes are wrong?
 - `check_motmaen_overlap.py` — training-set overlap for the fine-tuned comparison
 
-## Data
+**RQ3**
+- `rq3_sequence_landscape.py` — sequence-model saturation mutagenesis vs the PWM
+- `rq3_compare_landscapes.py` — structural landscapes, seed stability, anchor recovery
+- `rq3_shap.py` — exact Shapley attribution, compared against the landscapes
 
-| Source | Use | In git? |
+**Dataset audit**
+- `audit_dataset.py` — which negative mode produced the file; cross-allele crossover
+- `crossover_label_balance.py` — the peptide-identity-only classifier
+- `confound_vs_per_allele.py` — does the confound reach the per-allele distribution?
+- `hlac_partial_effect.py` — does the HLA-C effect survive controlling for it?
+- `foldset_survival_check.py` — does the finding reproduce on fold set v2?
+
+Every script has a module docstring giving its purpose, method, inputs and outputs;
+run any of them with `--help` for arguments.
+
+---
+
+## Where things run
+
+| Stage | Machine | Environment |
 |---|---|---|
-| MHC Motif Atlas (class I MS peptides) | Training labels and fold-set binders | ❌ gitignored |
-| Per-locus pseudosequence JSONs | 34-mer pocket pseudosequence per allele | ❌ gitignored |
-| Per-locus canonical sequence JSONs | Full HLA and β2m sequences for folding | ❌ gitignored |
-| MHCflurry curated data | Baselines and the data-type coverage analysis | ❌ via `mhcflurry-downloads` |
-| IEDB `mhc_ligand_full` | Coverage analysis only — not a training source | ❌ 284 MB, processed off-repo |
-| Fold outputs | Predicted structures, PAE, embeddings | ❌ gitignored |
-| Extracted feature tables | `pae_*.csv`, `conf_*.csv`, `geom_*.csv`, `results/` | ✅ committed |
+| Data prep, sequence model, all analysis | Beta (RTX 4090) | `pmhcpresent` |
+| ESMFold2 folding | Beta | `esmfold2` (Python 3.12) |
+| AF2 via HISTOFold | Beta | ColabFold 1.5.5 Singularity image |
+| AlphaFold 3 | Beta | Singularity image from `patches/af3.def` |
+| Fine-tuned AF2 (Motmaen et al.) | Beta | ColabFold image + `patches/alphafold_finetune_modernise.patch` |
+| Boltz-2.1 (cloud API) | Mac | `uv` project |
+| Overflow and large downloads | CS lab machines | local `/tmp` (home quota is 10 GB) |
 
-The Motif Atlas is the only training source. IEDB appears solely in the coverage
-analysis, and MHCflurry's curation only as a baseline and for the affinity comparison.
+Beta's `/tmp` is tmpfs — RAM-backed, 63 GB, cleared on reboot. Useful when `/home`
+is full, but copy anything you need to keep.
 
-`prepare_atlas.py` filters to classical HLA (A/B/C) and 8–11mers, normalises allele
-names to `HLA-A*02:01` form, labels presented peptides `1`, and generates
-length-matched negatives. `--neg-mode proteome` is the intended decoy set;
-`--neg-mode peptide-pool` is a no-external-data fallback.
-
-## RQ3 scoring constraint
-
-pLDDT, PAE and ipSAE need a **re-fold per mutant**; contact maps and shape
-complementarity can be recomputed on a **fixed wild-type backbone**. The structure
-module tags every feature with `refold_required` so the saturation-mutagenesis scorer
-can separate cheap from expensive features.
+---
 
 ## Data governance
 
@@ -293,24 +322,3 @@ AlphaFold 3 output may not be used to train models intended for commercial
 application under its weights terms of use, so AF3 is evaluation-only and excluded
 from anything fitted. NetMHCpan-4.1 is used through a colleague's licensed
 installation; this project is not licensed independently.
-
-## Quickstart
-
-```bash
-conda env create -f environment.yml
-conda activate pmhcpresent
-pip install -e ".[dev,struct,ml]"
-pytest -q
-
-python scripts/prepare_atlas.py \
-  --input data/raw/all_peptides.txt \
-  --output data/processed/atlas_labelled.csv \
-  --neg-mode peptide-pool
-
-python scripts/make_split.py \
-  --data data/processed/atlas_labelled.csv \
-  --out data/processed/split_val.csv
-```
-
-For panels, folding, feature extraction and the ensemble experiments, see
-[REPRODUCE.md](REPRODUCE.md).
