@@ -1,0 +1,13 @@
+cell,repeat,auroc,target_rows
+full__family_present,0,0.9576869499092626,33795
+full__family_present,1,0.9580678314491264,33795
+full__family_present,2,0.9585384542585179,33795
+starved__family_present,0,0.9458874534344368,230
+starved__family_present,1,0.9489384075476752,230
+starved__family_present,2,0.9485374912624711,230
+full__family_removed,0,0.9597068341172896,33795
+full__family_removed,1,0.9589492495548911,33795
+full__family_removed,2,0.9592664294597095,33795
+starved__family_removed,0,0.9136390956470918,230
+starved__family_removed,1,0.873708602930718,230
+starved__family_removed,2,0.9098891392309647,230
