@@ -93,6 +93,10 @@ def main():
     ap.add_argument("--allele-col", default="allele")
     ap.add_argument("--label-col", default="label")
     ap.add_argument("--repeats", type=int, default=3)
+    ap.add_argument("--split",
+                    help="CSV of validation (allele, peptide) pairs from "
+                         "make_split.py. Without it the holdout is a fresh "
+                         "draw nothing else can reproduce.")
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--out", default="results/ablation_a2_condB.csv")
@@ -107,7 +111,14 @@ def main():
     print(f"A*02 family in data ({len(family)}): {family}")
 
     print("Building cluster-based split (once)...")
-    is_val = make_split(df, args.allele_col, args.peptide_col)
+    if args.split:
+        val_pairs = set(map(tuple, pd.read_csv(args.split).values))
+        is_val = np.array([(a, p) in val_pairs for a, p in
+                           zip(df[args.allele_col], df[args.peptide_col])])
+        print(f"split loaded from {args.split}: {is_val.sum()} val rows")
+    else:
+        print("fresh split — NOT reproducible, prefer --split")
+        is_val = make_split(df, args.allele_col, args.peptide_col)
     df_train_full = df[~is_val].reset_index(drop=True)
     df_val = df[is_val].reset_index(drop=True)
     df_val_t = df_val[df_val[args.allele_col] == args.target].reset_index(drop=True)
