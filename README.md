@@ -173,6 +173,16 @@ python scripts/auroc_structure.py --pae pae_esmfold2_v4.csv \
 **Out:** one directory per complex containing PAE, structure and metrics; then a
 feature table; then AUROCs.
 
+**Runtimes, per complex on an RTX 4090.** ESMFold2 ~18 s; AF2 via HISTOFold ~22 s
+(~90 s with representations saved); AlphaFold 3 ~72 s; fine-tuned AF2 ~4 s after a 40 s
+compilation. So fold set v4's 216 complexes take roughly 1 h on ESMFold2 and 4 h on AF3.
+Boltz-2.1 runs through the cloud API at about $0.05 per complex.
+
+**Disk.** ESMFold2 writes ~0.8 MB per complex, AF2 via HISTOFold ~8.5 MB, AF3 ~9 MB. A
+2,000-fold saturation-mutagenesis run is therefore 1.6 GB on ESMFold2 but 17 GB on AF2 —
+check free space before starting, and consider extracting the PAE and deleting each
+complex as it completes.
+
 AlphaFold 3 and the fine-tuned AlphaFold need extra setup — see
 [REPRODUCE.md](REPRODUCE.md), sections for 5 August and 6–10 August.
 
