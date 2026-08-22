@@ -74,8 +74,12 @@ negatives.
 **Two negative modes, and they are different experiments.** `peptide-pool` draws real
 eluted ligands of *other* alleles, so the benchmark tests cross-allele motif
 discrimination. `proteome` draws random windows from a human proteome FASTA and tests
-presented-versus-not. The committed data was built with `peptide-pool`; see the
-caveat under "Known issues" below.
+presented-versus-not. The committed data was built with `peptide-pool`, and that
+turns out to be the better choice: on proteome negatives a classifier using peptide
+identity alone reaches AUROC 0.8801, because proteome windows never appear as anyone's
+positive so peptide identity cleanly separates the classes. On deduplicated
+peptide-pool the same prior reaches only 0.3596 — the same peptide carries both labels
+under different alleles, which largely neutralises it. See "Known issues" below.
 
 ### 2. Make the train/validation split
 
@@ -195,6 +199,14 @@ artefact inflated the others more, and the effect attenuates rather than disappe
 OLS with confound in the model gives −0.0267 (p < 0.0001), a matched comparison gives
 −0.0269 (p 0.0002), and it reproduces on fold set v2.
 
+**The per-allele results use a different model from the fold-set results.**
+`rq1_baseline_split_v3.pt` is trained on the deduplicated data and used for the pooled
+and per-allele AUROC; `rq1_baseline_split_v2.pt` is used for everything computed on the
+fold sets, which were built from the older split. Only 10.3% of the validation split
+survives regeneration, so the two cannot be merged without rebuilding the benchmarks and
+refolding 360 complexes across five architectures. Neither model is evaluated on its own
+training data.
+
 **85.3% of unique validation peptides also appear in training under some allele.** The
 split clusters within allele, so a peptide can be a training example for one allele and
 a validation example for another. Intentional — a different groove is a different
@@ -206,9 +218,6 @@ sets must be read with that in mind, though our model sits 0.07–0.08 *below* t
 both selected sets, which is the evidence it is not simply recovering the criterion.
 The structural models never see the Atlas and are unaffected.
 
-**The ablation scripts predate `make_split.py`** and should be rerun before their
-numbers are quoted.
-
 ---
 
 ## Results in brief
@@ -219,7 +228,7 @@ Full tables, confidence intervals and caveats are in [REPRODUCE.md](REPRODUCE.md
 |---|---|---|
 | **RQ1** | Do structural models beat sequence models? | **No.** Sequence 0.930 against AF3 0.858, AF2 0.842, ESMFold2 0.805, Boltz 0.745 on fold set v4. Every paired margin excludes zero. Five feature readouts, five architectures including a fine-tuned one. |
 | **RQ2** | Do they combine synergistically? | **No.** Nine configurations, every interval spanning zero. The models do fail on partly different complexes (margin rho +0.223 against a 0.143 chance baseline), so the null is not simple redundancy. |
-| **RQ3** | Have the two learned the same binding biology? | **Partly.** Both recover anchor positions; the sequence model's top-2 fall inside the IC-derived anchor set for 6/7 alleles. For HLA-B\*08:01 the structural model ranks P5 first where the sequence model does not — and P5 carries more information than P2 for that allele. |
+| **RQ3** | Have the two learned the same binding biology? | **Partly.** Both recover anchor positions; the sequence model's top-2 fall inside the IC-derived anchor set for 6/7 alleles. For HLA-B\*08:01 both structural models rank P5 first where the sequence model does not — but the same analysis on HLA-B\*37:01, which has the *highest* P5 information content of the group, puts P5 sixth of nine. They detect one P5 mechanism, not P5 anchoring in general. |
 
 Two findings independent of the research questions:
 
@@ -244,7 +253,7 @@ content gives the best structural feature across six independent measurements.
 - `per_allele_auroc.py`, `plot_per_allele.py` — per-allele AUROC across 123 alleles
 - `derive_anchors.py` — per-position information content; the 43% survey
 - `ablation_a2.py`, `ablation_a2_condB.py`, `ablation_family_condB.py` — starvation
-  and family-removal ablations *(predate `make_split.py`; rerun before quoting)*
+  and family-removal ablations
 
 **Panel and fold-set construction**
 - `select_allele_panel.py` — panel v1–v3 (AUROC and anchor-IC stratification)
