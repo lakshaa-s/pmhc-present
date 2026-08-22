@@ -169,3 +169,78 @@ Artefact for the 10.3% figure: measured 11 Aug, recorded in the 11 August sectio
       preferred on performance. Report all nine configurations rather than choosing.
 - [ ] Whether to run AF2 on the remaining RQ3 alleles, or report B\*08:01 alone
 - [ ] Introduction chapter — deprioritised pending results
+
+# PROGRESS.md edits — 21 August
+
+Three changes. Apply by hand or paste over the corresponding blocks.
+
+---
+
+## 1. Amend row 12 of the results ledger
+
+**Replace this row:**
+
+```
+| 12 | **B\*08:01 P5: both structural models rank P5 first; the sequence model does not** | RQ3 variants | `results/rq3_structural_6seed_summary.csv` (ESMFold2 [5,9]), `results/af2_b08_landscape.npy` (AF2 [5,9,2], P5 sens 0.489 vs P9 0.459, P2 0.295) | verified 12 Aug |
+```
+
+**With these two:**
+
+```
+| 12 | For **HLA-B\*08:01 specifically**, both structural models rank P5 first and the sequence model does not. ~~Not evidence that the structural models track P5 anchoring in general — see row 15.~~ | RQ3 variants, 6 seeds (ESMFold2) / 3 seeds (AF2) | `results/rq3_structural_6seed_summary.csv` (ESMFold2 [5,9]), `results/af2_b08_landscape.npy` (AF2 [5,9,2], P5 0.489 vs P9 0.459, P2 0.295) | verified 12 Aug, **bounded 21 Aug** |
+| 15 | **The structural models do not find P5 for HLA-B\*37:01**, despite its P5 IC being the highest of the group (1.97 bits). P5 ranks 6th of 9 at 0.645; P4/P7/P8/P5 span only 0.05, so P5 is not distinguished from any other non-terminal position. Seed stability is the best measured anywhere in RQ3 (mean +0.557, min +0.511), so this is not noise. | RQ3 variants, 3 seeds | `results/rq3_structural_b37_landscape.csv`, `results/rq3_structural_b37_seed_stability.csv` | verified 21 Aug |
+| 16 | P5 Arg chelation requires a four-residue configuration (Asp9, Thr69, Asp74, Ser97), not Asp9 alone. Exactly **one** of the 123 training alleles has B\*08:01's configuration. At least three distinct configurations achieve P5 anchoring: B\*08:01 (D/T/D/S), B\*37:01 (H/T/Y/R), B\*14:01–02 (Y/T/D/W). | n/a | `results/p5_anchor_residues.csv`, mechanism from Chris Thorpe 21 Aug | verified 21 Aug |
+| 17 | Per-locus mean AUROC is unchanged between the confounded and clean models — HLA-A 0.970→0.968, HLA-B 0.975→0.976, HLA-C 0.940→0.941 — so the HLA-C deficit is not an artefact of negative sampling | validation split, both models | `results/per_allele_auroc.csv`, `results/per_allele_auroc_v3.csv` | verified 21 Aug |
+```
+
+---
+
+## 2. Add to "Retracted — do not resurrect"
+
+```
+- ~~The structural models pick up P5 anchoring where the sequence model misses it.~~
+  Too broad. They pick up **B\*08:01's** P5 anchoring. Running the same saturation
+  mutagenesis on HLA-B\*37:01 — which has the *highest* P5 information content of the
+  P5-Arg group at 1.97 bits — puts P5 sixth of nine, undistinguished from P4, P7 and
+  P8. Both alleles show near-identical P5 preference in their eluted repertoires, so
+  the difference is chemical rather than biological: B\*08:01 chelates through an
+  Asp9/Asp74 charged pair, B\*37:01 through His9/Tyr74/Arg97. The defensible claim is
+  one mechanism in one allele. Prediction was recorded before the run and failed.
+
+- ~~Thr69 predicts P5 anchoring.~~ It separates the nine alleles in
+  `p5_anchor_residues.csv` perfectly, but those nine were selected for being P5-Arg
+  binders or Asp9 carriers. Across all 123 alleles Thr69 gives mean P5 IC 0.45
+  against 0.34 for others, Mann-Whitney p 0.34, with 44 alleles carrying it. Fourth
+  selection artefact caught in this project; do not report it, and it was left out of
+  the correspondence with Chris for the same reason.
+```
+
+---
+
+## 3. Update the open decisions
+
+**Replace:**
+
+```
+- [ ] Whether to run AF2 on the remaining RQ3 alleles, or report B\*08:01 alone
+```
+
+**With:**
+
+```
+- [x] Whether to run AF2 on the remaining RQ3 alleles — **resolved.** AF2 confirmed
+      B\*08:01 (P5 first, architecture-independent) and ESMFold2 on B\*37:01 returned
+      the bounding negative. No further architecture runs would change the claim.
+- [ ] Whether the B\*37:01 negative belongs in RQ3's results or in the discussion as
+      a limitation on the B\*08:01 finding. It is arguably the more interesting of the
+      two, so probably results.
+```
+
+---
+
+## Note on why this matters
+
+Row 12 as originally written would have supported a claim the 21 August result
+contradicts. A future session reading the ledger without this amendment would have
+written "the structural models track P5 anchoring" into a chapter, which is exactly
+the drift the file exists to prevent.
