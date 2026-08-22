@@ -85,3 +85,4 @@ esmfold2-hard/
 *.log
 esmfold2-*/
 boltz-*/
+results/af2_b08_pae/
