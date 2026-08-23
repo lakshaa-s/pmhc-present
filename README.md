@@ -196,10 +196,13 @@ times as often. Peptide identity alone scores AUROC **0.248** on the validation 
 0.25 from chance, inverted. The pooled figure of 0.9732 should therefore not be quoted
 as a clean estimate.
 
-The fix is one line and is committed. **The data has deliberately not been
-regenerated**, because that changes the split, which changes every fold set, which
-would mean refolding 360 complexes across five models. Regeneration is the first item
-in future work.
+The fix is one line, and the data **has** been regenerated — as
+`atlas_labelled_v2.csv` with model `rq1_baseline_split_v3.pt`, which gives a pooled
+AUROC of 0.9715 against the old 0.9732. The original files are kept because the fold
+sets were built from the old split and only 10.3% of it survives regeneration; see the
+next issue. Note the fix reduces but does not remove the confound — the
+peptide-identity prior moves from 0.248 to 0.3596, the residual coming from
+cross-allele crossover that deduplication cannot touch.
 
 *This does not reach the fold-set results.* Fold-set decoys are anchor-matched or
 affinity-measured, never drawn from the peptide pool, so RQ1, RQ2, RQ3, the fine-tuned
@@ -207,7 +210,9 @@ comparison and the external baselines are unaffected. The HLA-C finding also sur
 HLA-C is the *least* confounded locus (0.202 against HLA-A 0.235, HLA-B 0.249), so the
 artefact inflated the others more, and the effect attenuates rather than disappearing —
 OLS with confound in the model gives −0.0267 (p < 0.0001), a matched comparison gives
-−0.0269 (p 0.0002), and it reproduces on fold set v2.
+−0.0269 (p 0.0002), and it reproduces on fold set v2. Per-locus means are also
+essentially unchanged between the two models (HLA-A 0.970→0.968, HLA-B 0.975→0.976,
+HLA-C 0.940→0.941).
 
 **The per-allele results use a different model from the fold-set results.**
 `rq1_baseline_split_v3.pt` is trained on the deduplicated data and used for the pooled
