@@ -1,4 +1,4 @@
-# pmhcpresent — HLA class I presentation prediction, with an equity lens (IN PROCESS OF BEING RERUN)
+# pmhcpresent — HLA class I presentation prediction, with an equity lens
 
 COMP0190 / AI4BH 2025–26. Predicts which peptides are presented by HLA class I, and
 asks whether structural methods help where sequence methods are weakest — that is,
