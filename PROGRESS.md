@@ -244,3 +244,33 @@ Row 12 as originally written would have supported a claim the 21 August result
 contradicts. A future session reading the ledger without this amendment would have
 written "the structural models track P5 anchoring" into a chapter, which is exactly
 the drift the file exists to prevent.
+## AF3 on fold set v2 — image built, folding blocked
+
+**Built 27 August**, via the Sylabs remote builder from `patches/af3_remote.def`.
+Local copy at `~/af3build/alphafold3.sif` on the CS filesystem (3.7 GB), also in the
+Sylabs library, so it survives local disk problems.
+
+Three build attempts. The first two were killed at `uv run build_data` — Sylabs'
+free tier reclaimed the agent for running too long. Removing that step succeeded:
+AF3 builds the components database on first run instead, so the first fold is slower
+and later ones are unaffected. The image is 3.7 GB rather than the 4.8 GB built
+locally in August for the same reason.
+
+**AF3 source commit `c0f97eda2f1f482fd94d3a38bece18c7069b4a5c`.** The v4 folds came
+from whatever `main` was on 5 August, which is probably a different commit — so any
+v2 result is a robustness check, not a like-for-like comparison, and needs saying if
+both appear in one table.
+
+**Blocked on infrastructure, not on AF3.** No reachable machine has both a GPU and
+~5 GB free: Beta has the GPU and 1.2 GB with no path to the CS filesystem, and the
+lab machines have 589 GB and free cards but sit behind a jump host returning
+"Session open refused by peer" for the past two hours. Inputs are built and committed
+(`fold_sets/af3v2_inputs/`, 144 JSONs and 6 MSAs). Parameters download from anywhere.
+Folding is ~3 hours once a machine is available.
+
+**Worth noting this is a robustness check on a superseded panel.** Panel v4 is the
+primary one, all four architectures ran on it, and v2 predates AF3's availability.
+The consensus finding it would test has separately been shown to be variance
+reduction (PC1 0.9033 vs the four-way mean 0.9047), so the v2 replication would tell
+us whether variance reduction replicates rather than whether the architectures carry
+complementary information.
