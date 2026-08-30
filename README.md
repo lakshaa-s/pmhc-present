@@ -343,6 +343,10 @@ TRACERx is **controlled-access** (Data Access Committee) and is used as an
 **Nothing TRACERx-derived enters git**; see `.gitignore`.
 
 AlphaFold 3 output may not be used to train models intended for commercial
-application under its weights terms of use, so AF3 is evaluation-only and excluded
-from anything fitted. NetMHCpan-4.1 is used through a colleague's licensed
+application under its weights terms of use. AF3 features therefore appear in
+evaluation and in the RQ2 ensemble probes, which are fitted only to measure whether
+structural and sequence signals combine, and are neither retained, deployed nor
+distributed. No AF3-derived model leaves this repository.
+
+NetMHCpan-4.1 is used through a colleague's licensed
 installation; this project is not licensed independently.
