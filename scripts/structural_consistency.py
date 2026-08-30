@@ -197,6 +197,9 @@ def main() -> None:
 
     best = r.loc[r.auroc_z.idxmax()] if not r.empty else None
     print("\n=== against the readouts already tested on these folds ===")
+    # these are fold set v4 figures; printed for orientation only, and labelled
+    # as such because this script also runs on v2 where they differ
+    print("  (fold set v4 reference values — not recomputed here)")
     print("  PAE, anchor-localised        0.804")
     print("  learned representations      0.834")
     print("  confidence metrics           0.753")
