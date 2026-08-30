@@ -1,0 +1,2 @@
+model,n_alleles,rho,p,verdict
+MHCflurry (pres),123,-0.393,0.0,degrades with isolation

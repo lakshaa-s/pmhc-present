@@ -1,0 +1,5 @@
+model,n_alleles,rho,p,verdict
+NetMHCpan-4.1,6,-0.638,0.1731,"trend, underpowered at this n"
+MixMHCpred,6,,,no detectable relationship
+MHCflurry (pres),15,-0.284,0.3046,"trend, underpowered at this n"
+ours,15,-0.222,0.4262,"trend, underpowered at this n"
