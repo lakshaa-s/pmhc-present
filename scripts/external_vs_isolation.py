@@ -166,9 +166,18 @@ def main() -> None:
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.out, index=False)
 
+    # significance matters more than count once the panel is large enough for any
+    # single correlation to be interpretable on its own
+    sig = out[(out.rho < 0) & (out.p < 0.05)]
     neg = out[out.rho < -0.2]
     print()
-    if len(neg) >= 3:
+    if len(sig) >= 2 and out.n_alleles.min() >= 50:
+        print(f"  {len(sig)} of {len(out)} predictors show a significant negative")
+        print("  relationship at a panel size where each is interpretable alone.")
+        print("  Agreement across independently developed models on different")
+        print("  training data makes this a property of the approach rather than")
+        print("  of any one implementation.")
+    elif len(neg) >= 3:
         print(f"  {len(neg)} of {len(out)} predictors show a negative trend. Agreement")
         print("  across independently developed models is not something attenuation")
         print("  produces, so this supports the coverage deficit being a property of")
