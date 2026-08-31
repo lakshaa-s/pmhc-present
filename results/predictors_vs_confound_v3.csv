@@ -1,0 +1,4 @@
+predictor,n,raw_rho,raw_p,partial_rho,partial_p,rho_with_confound,fraction_retained,verdict
+anchor_ic,123,0.533,2.1889021515981815e-10,0.578,2.6360479449744314e-12,-0.049,1.084,safe (independent of the confound)
+nn_dist,123,-0.291,0.0010848504749218638,-0.427,8.357381488376938e-07,0.306,1.467,survives
+log_n,123,-0.118,0.19499120975706444,-0.225,0.012204297375307429,0.282,1.916,survives

@@ -1,0 +1,5 @@
+test,rho,p,n,prespecified
+europe_enrichment,0.013,0.8881,123,True
+global_freq,-0.243,0.0067,123,True
+Europe,-0.127,0.161,123,False
+median pairwise rho between regional frequencies,0.59,,7,True
