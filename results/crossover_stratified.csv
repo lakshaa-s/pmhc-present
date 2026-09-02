@@ -1,0 +1,16 @@
+model,level,stratum,n_alleles,rho_isolation,p_isolation,rho_isolation_partial,p_isolation_partial,rho_promiscuity,p_promiscuity
+ours,allele,all,123,-0.196,0.0299,-0.229,0.0107,-0.455,0.0
+ours,stratum,0,120,-0.08,0.3853,,,,
+ours,stratum,1,123,-0.171,0.0586,,,,
+ours,stratum,2,121,-0.134,0.1426,,,,
+ours,stratum,3-48,120,-0.212,0.0201,,,,
+MHCflurry,allele,all,123,-0.393,0.0,-0.393,0.0,0.055,0.5463
+MHCflurry,stratum,0,120,-0.139,0.1298,,,,
+MHCflurry,stratum,1,123,-0.297,0.0008,,,,
+MHCflurry,stratum,2,121,-0.226,0.0125,,,,
+MHCflurry,stratum,3-48,120,-0.307,0.0006,,,,
+NetMHCpan,allele,all,123,-0.248,0.0057,-0.265,0.0031,-0.295,0.0009
+NetMHCpan,stratum,0,120,-0.012,0.9003,,,,
+NetMHCpan,stratum,1,123,-0.179,0.0474,,,,
+NetMHCpan,stratum,2,121,-0.233,0.01,,,,
+NetMHCpan,stratum,3-48,120,-0.328,0.0003,,,,
