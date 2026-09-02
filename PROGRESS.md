@@ -104,13 +104,16 @@ stale value, which would have reintroduced a retraction.
 | 17 | Per-locus mean AUROC is essentially unchanged between the confounded and clean models — HLA-A 0.970→0.968, HLA-B 0.975→0.976, HLA-C 0.940→0.941 — so the HLA-C deficit is not an artefact of negative sampling | validation split, both models | `results/per_allele_auroc.csv`, `per_allele_auroc_v3.csv` | verified 21 Aug |
 | 18 | **No European-specific performance gap.** The pre-specified direct test — Europe-enrichment index against per-allele AUROC — is flat at **+0.013 (p 0.89)**, and European frequency controlling for global frequency gives +0.106 (p 0.24). What does hold is a *global* frequency effect in the opposite direction to the Europe-bias prediction: commoner alleles are predicted slightly worse, **−0.243 (p 0.007)** | validation split, v3 model, 123 alleles | `results/afnd_direct_tests.csv`, `afnd_frequency_per_allele.csv` | verified 30 Aug |
 | 19 | The seven per-region correlations are **one collinear signal, not seven findings**: median pairwise Spearman between regional frequencies is **+0.590** (range +0.090 to +0.878). At Bonferroni alpha 0.0071 only South & Central Asia (p 0.0007) survives; Europe (−0.127, p 0.161) does not | as above | `results/afnd_direct_tests.csv` | verified 30 Aug |
-| 20 | **Three independently developed predictors all degrade with motif isolation** at n=123: MHCflurry −0.393 (p<0.0001), ours −0.291 (p 0.001), NetMHCpan-4.1 −0.248 (p 0.006). For MHCflurry, where training overlap is checkable, the effect is not exposure: isolation and overlap correlate at only −0.113 (p 0.21), and partialling overlap moves isolation only to −0.381 | 200 balanced pairs per allele from the validation split | `results/external_vs_isolation_123.csv`, `mhcflurry_val123.csv`, `netmhcpan_val123.csv`, `fold_sets/validation_sample_123.csv` | verified 30 Aug |
+| 20 | **Three independently developed predictors all degrade with motif isolation**, all on the same 123 alleles and the same peptides: MHCflurry **−0.393** (p<0.0001), NetMHCpan-4.1 **−0.248** (p 0.006), ours **−0.196** (p 0.030). Two were developed by other groups on their own training corpora, so the agreement is not a property of one implementation. For MHCflurry, where training overlap is checkable, the effect is not exposure: isolation and overlap correlate at only −0.113 (p 0.21) and partialling overlap moves isolation to −0.381 | 200 balanced pairs per allele from the validation split | `results/external_vs_isolation_matched.csv`, `sequence_val123.csv`, `mhcflurry_val123.csv`, `netmhcpan_val123.csv`, `fold_sets/validation_sample_123.csv` | verified 30 Aug, **matched 31 Aug** |
+| 20b | Our model's own isolation correlation is **−0.291 on the full validation split** and **−0.196 on the 200-pairs-per-allele sample** — same alleles, fewer peptides each, so a noisier per-allele AUROC and an attenuated correlation. The matched figure is the one to present in any three-model table; the full-split figure is the better-powered estimate of our model alone. They must not appear together without this explanation | validation split, v3 model | `results/per_allele_auroc_v3.csv`, `external_vs_isolation_matched.csv` | verified 31 Aug |
 | 21 | MixMHCpred is the **only** model to fall on the PWM-free affinity set (0.999 → 0.956); NetMHCpan and MHCflurry both improve, and ours is unchanged at 0.921. It is also the only one trained on immunopeptidomics from the group producing the Atlas against whose PWM the fold-set binders were selected | affinity set, 3 alleles, all modelled directly | `results/mixmhcpred_affinity.csv`, `mhcflurry_affinity.csv`, `netmhcpan_affinity.csv`, `sequence_affinity.csv` | verified 30 Aug |
 | 22 | The four-architecture consensus (0.9047 vs AF3's 0.8575) is **variance reduction, not complementary information**: PC1 of the four z-scored scores alone gives 0.9033, a difference of 0.0014, with PC1 explaining 61.3% of variance. The gain does not track headroom (rho +0.203, p 0.60), so it is not the ceiling effect either. Diagnostic validated on synthetic data before use | fold set v4 | `results/consensus_diagnosis_v4.csv`, `_subsets.csv`, `_per_allele.csv` | verified 27 Aug |
 | 23 | Calibration is a trade, not a free improvement. Leave-one-allele-out temperature scaling moves ECE 0.2507 → 0.1583 while Brier barely shifts (0.2274 → 0.2265), and pooled **AUROC falls 0.930 → 0.901** because differing per-allele temperatures reorder complexes across alleles | fold set v4 | `results/calibration_v4_reliability.csv` | verified 27 Aug |
 | 24 | The AUROC ordering does not survive decision-relevant metrics. AF3 leads AF2 on AUROC (0.858 vs 0.842) but trails at high specificity (pAUC≤0.10 0.619 vs 0.633; PPV@20 0.90 vs 0.95). The consensus, statistically indistinguishable from sequence on AUROC, is clearly behind it at FPR≤0.10 (0.688 vs 0.743) | fold set v4 | `results/calibration_v4_decision_metrics.csv` | verified 27 Aug |
 | 25 | RQ2's null is underpowered but bounded. Power is **0.63 at n=216** for the effect actually measured (+0.026, matching the gated ensemble's ungated row at +0.028), reaching 80% near n≈432. Independently, sequence gets only 5 of 216 wrong, 4 of which some structural model rescues, and a cheating per-complex oracle reaches 0.984 against sequence's 0.946 | fold set v4 | `results/rq2_power.csv`, `rq2_error_overlap_margins.csv` | verified 27 Aug |
 | 26 | **Allele-specific expression does not predict per-allele performance.** Within-locus expression against AUROC gives +0.057 (p 0.63), and is null within every locus separately (HLA-A +0.098 n=25, HLA-B −0.001 n=31, HLA-C −0.090 n=18). Motif isolation is unaffected by controlling for it (−0.372 → −0.379) | 74 alleles matched from D'Antonio et al. 2019 | `results/expression_vs_performance.csv` | verified 30 Aug |
+| 27 | **The isolation effect is not the cross-allele crossover artefact.** 92.2% of the sample's unique peptides also appear in training under some other allele, so peptide promiscuity was tested as a competing explanation. Isolation and promiscuity are independent (−0.018, p 0.84) and isolation survives controlling for it in all three models, strengthening in two: ours −0.196 → −0.229, MHCflurry −0.393 → −0.393, NetMHCpan −0.248 → −0.265. Filtering to unseen peptides was rejected as the control — it leaves 8.7% of validation 9mers, 53 alleles at 15 pairs per class (SE ≈ 0.13 against 0.050), and removes negatives preferentially because they are promiscuous by construction | 200 pairs per allele | `results/crossover_stratified.csv` | verified 31 Aug |
+| 28 | **Peptide promiscuity predicts per-allele performance for our model and NetMHCpan but not MHCflurry** — ours −0.455 (p<0.0001), NetMHCpan −0.295 (p 0.0009), MHCflurry +0.055 (ns). MHCflurry's presentation predictor was trained on a different negative construction, so if the effect were biological it should appear there too. That it does not identifies this as a property of **this benchmark's construction** rather than of presentation: peptides shared across many repertoires appear as negatives for every other allele, so the labels are contradictory across alleles | 200 pairs per allele | `results/crossover_stratified.csv` | verified 31 Aug, promoted from Unconfirmed |
 
 ---
 
@@ -201,23 +204,15 @@ stale value, which would have reintroduced a retraction.
 
 ## Unconfirmed — carried from session notes, not yet traced to an artefact
 
-- **Repertoire overlap as a per-allele predictor.** Computed inline on 30 Aug: the
-  mean fraction of an allele's 9mer repertoire shared with other alleles predicts
-  per-allele AUROC at rho **−0.495** raw and **−0.520** controlling for motif
-  isolation, which would make it the strongest per-allele predictor in the project.
-  Frequency and motif isolation both survive controlling for it (−0.394 and −0.340),
-  suggesting three independent effects. **None of this was written to a file.** By
-  this ledger's own rule it is a memory, not a result. Write a script, commit the
-  output, then promote. Note also the likely reading: peptides shared across many
-  repertoires appear as negatives for every other allele, so this may be the
-  cross-allele crossover artefact seen per allele rather than biology.
-
 - **Why common alleles are predicted worse.** Row 18's −0.243 is real and its
   direction is counterintuitive, since frequency correlates with peptide count at
   +0.570 — more training data and worse performance. Two explanations were tested and
   both failed: frequency does not track motif distinctiveness (−0.100, ns), and common
   alleles share *fewer* peptides with other repertoires (−0.189), so it is neither
-  promiscuity nor decoy hardness. Report as an open question, not a finding.
+  promiscuity nor decoy hardness. Report as an open question, not a finding. (Note the overlap figure this bullet refers to has since been promoted as row 28,
+  with a sharper reading: the effect is benchmark construction rather than biology,
+  evidenced by MHCflurry not showing it. That does not explain the frequency effect,
+  which remains open.)
 
 - ~~HLA-C median AUROC ≈ 0.951 vs ≈ 0.977–0.980 for A/B~~ → **resolved**, row 17.
 
@@ -258,6 +253,16 @@ so counting trends is the wrong test. The conclusion is unchanged under either r
 all three predictors are both negative and significant. The verdict line is advisory
 printing, not an analysis step — the correlations and p-values are computed
 identically before and after.
+
+**The crossover control was chosen over filtering, and the reasoning matters.** The
+obvious control — restrict to peptides unseen in training — was rejected before being
+run, on two grounds computed in advance: it leaves 8.7% of validation 9mers giving 53
+alleles at a per-allele SE near 0.13, which is *less* power than the unfiltered sample;
+and it is not a neutral filter, because negatives are drawn from other alleles'
+repertoires and are therefore promiscuous by construction, so filtering removes them
+preferentially and leaves a positive-heavy set whose surviving negatives are atypical.
+Stratification retains all 123 alleles and tests the same concern. Recorded because
+"why not just filter" is the obvious question and the answer is not obvious.
 
 ---
 
@@ -311,8 +316,7 @@ architectures carry complementary information.
 - [ ] Whether the B\*37:01 negative belongs in RQ3's results or in the discussion as a
       limitation on the B\*08:01 finding. It is arguably the more interesting of the
       two, so probably results.
-- [ ] Whether to score the sequence model on `validation_sample_123.csv` so row 20's
-      three predictors come from one dataset. Currently MHCflurry and NetMHCpan use the
-      200-pairs-per-allele sample while ours uses the full validation split — same
-      alleles, different peptide counts, so not strictly like-for-like.
+- [x] Score the sequence model on `validation_sample_123.csv` — **done 31 Aug.** All
+      three predictors now come from one dataset (row 20). Our figure moves from
+      −0.291 to −0.196 for the reason recorded in row 20b.
 - [ ] Introduction chapter — deprioritised pending results
