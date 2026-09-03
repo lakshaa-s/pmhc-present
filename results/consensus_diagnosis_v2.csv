@@ -1,0 +1,2 @@
+n,best_single,auroc_best_single,auroc_consensus,auroc_sequence,auroc_pc1,pc1_var_explained,cons_minus_best,cons_minus_best_lo,cons_minus_best_hi,seq_minus_cons,seq_minus_cons_lo,seq_minus_cons_hi,rho_gain_vs_headroom,p_gain_vs_headroom,n_subsets,best_subset,best_subset_auroc
+144,af3,0.8549382716049383,0.863233024691358,0.9280478395061729,0.8622685185185185,0.5966563288478076,0.005487268518518506,-0.039954668209876566,0.05229070216049372,0.06485349151234567,-0.015277777777777805,0.14429012345679015,-0.3478626213914691,0.4992532181146332,11,af3 + af2 + boltz,0.8784722222222222
