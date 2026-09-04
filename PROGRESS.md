@@ -74,7 +74,6 @@ stale value, which would have reintroduced a retraction.
 |---|---|
 | Real shape complementarity | `shape.py` is a ΔSASA proxy, explicitly not Sc. Do not rely on it for RQ1/RQ2 conclusions without qualification. |
 | Regenerated fold sets | The multiset fix is applied in `prepare_atlas.py` and used for v3, but the fold sets remain on the v2 split. First item in future work. |
-| AF3 on fold set v2 | Image built and banked; folding blocked on infrastructure. See the section below. |
 | Geometry for AF3 and Boltz | Permanently unavailable. AF3's v4 structures were written to Beta's tmpfs and lost when it cleared; Boltz ran through the cloud API and returned scores without coordinates; ESMFold2 v2 predates the `to_mmcif` fix and wrote no structures (0 CIFs against v4's 216). |
 | Force-field energy features | Not attempted. STRUMP-I (bioRxiv, Sept 2025) reports force-field terms performing well on underrepresented alleles; this work tested folding-model outputs, not force-field scoring of the resulting structures. Stated limitation and the clearest next study. |
 
@@ -94,7 +93,7 @@ stale value, which would have reintroduced a retraction.
 | 7 | Anchor IC predicts per-allele AUROC (+0.533); motif distance does (−0.291); sample size does not (−0.118). All three survive controlling for confound strength | validation split, **v3 model** | `results/per_allele_auroc_v3.csv`, `predictors_vs_confound_v3.csv` | verified 12 Aug, artefact regenerated 30 Aug |
 | 8 | HLA-C effect survives the negative-sampling confound: OLS −0.0267 (p<0.0001), matched −0.0269 (p 0.0002) | validation split, v2 model | `results/confound_vs_per_allele.csv`, `hlac_partial_effect.py` output | verified |
 | 9 | Fine-tuning adds ~+0.09 where the allele is familiar and nothing on motif-isolated alleles; allele composition costs 0.193 against decoy construction's 0.038 | four benchmarks | `results/aff_finetuned.csv`, `aff_affinityset_ft.csv`, `aff_their_testset.csv` | verified |
-| 10 | `pae_anchors_ic` is the best structural feature across six measurements once between-allele scale is removed | v2 and v4 | `auroc_af2_v*.csv`, `auroc_esmfold2_v4.csv`, `auroc_boltz_v4.csv`, `auroc_af3_v4.csv`, `pae_af3_v4_z.csv` | verified |
+| 10 | `pae_anchors_ic` is the best structural feature in **six of seven** measurements once between-allele scale is removed. The exception is AF3 on fold set v2, where z-scored it gives 0.855 against `pae_anchor2`'s 0.875, driven by one allele: for HLA-A\*02:01 the P2 PAE alone gives 0.979 while the C-terminal PAE gives 0.583, so averaging them halves the signal to 0.688. Note `pae_anchors` and `pae_anchors_ic` are identical there (both [1,−1]), so this is not the IC derivation but the assumption that both anchors contribute; on 12 binders and 12 decoys it may be noise, and a per-position rather than averaged feature is the obvious follow-up | v2 and v4 | `auroc_af2_v*.csv`, `auroc_esmfold2_v4.csv`, `auroc_boltz_v4.csv`, `auroc_af3_v4.csv`, `pae_af3_v4_z.csv` | verified |
 | 11 | Sequence model recovers anchor *positions* (top-2 inside IC anchors for 6/7 alleles) but residue preferences only partly (landscape rho +0.541) | RQ3 panel | `results/rq3_sequence_summary.csv` | verified |
 | 12 | For **HLA-B\*08:01 specifically**, both structural models rank P5 first and the sequence model does not. Not evidence that they track P5 anchoring in general — see row 15 | RQ3 variants, 6 seeds (ESMFold2) / 3 seeds (AF2) | `results/rq3_structural_6seed_summary.csv`, `results/af2_b08_landscape.npy` (AF2 [5,9,2], P5 0.489 vs P9 0.459, P2 0.295) | verified 12 Aug, **bounded 21 Aug** |
 | 13 | Asp9 is in the model's input (pseudosequence position 2) but only 1 of 123 training alleles exhibits P5 anchoring — B\*08:01 at 1.93 bits, the four HLA-C\*07 Asp9-carriers at 0.25–0.61 | n/a | `data/pseudoseq/hla_*.json`, `data/processed/anchors.json` | verified 12 Aug |
@@ -102,7 +101,7 @@ stale value, which would have reintroduced a retraction.
 | 15 | **The structural models do not find P5 for HLA-B\*37:01**, despite its P5 IC being the highest of the group (1.97 bits). P5 ranks 6th of 9 at 0.645; P4/P7/P8/P5 span only 0.05. Seed stability is the best measured anywhere in RQ3 (mean +0.557, min +0.511), so this is not noise. Prediction was recorded before the run and failed | RQ3 variants, 3 seeds | `results/rq3_structural_b37_landscape.csv`, `rq3_structural_b37_seed_stability.csv` | verified 21 Aug |
 | 16 | P5 Arg chelation requires a four-residue configuration (Asp9, Thr69, Asp74, Ser97), not Asp9 alone. Exactly **one** of the 123 training alleles has B\*08:01's configuration. At least three distinct configurations achieve P5 anchoring: B\*08:01 (D/T/D/S), B\*37:01 (H/T/Y/R), B\*14:01–02 (Y/T/D/W) | n/a | `results/p5_anchor_residues.csv`; mechanism from Chris Thorpe, 21 Aug | verified 21 Aug |
 | 17 | Per-locus mean AUROC is essentially unchanged between the confounded and clean models — HLA-A 0.970→0.968, HLA-B 0.975→0.976, HLA-C 0.940→0.941 — so the HLA-C deficit is not an artefact of negative sampling | validation split, both models | `results/per_allele_auroc.csv`, `per_allele_auroc_v3.csv` | verified 21 Aug |
-| 18 | **No European-specific performance gap.** The pre-specified direct test — Europe-enrichment index against per-allele AUROC — is flat at **+0.013 (p 0.89)**, and European frequency controlling for global frequency gives +0.106 (p 0.24). What does hold is a *global* frequency effect in the opposite direction to the Europe-bias prediction: commoner alleles are predicted slightly worse, **−0.243 (p 0.007)** | validation split, v3 model, 123 alleles | `results/afnd_direct_tests.csv`, `afnd_frequency_per_allele.csv` | verified 30 Aug |
+| 18 | **No European-specific performance gap.** The pre-specified direct test — Europe-enrichment index against per-allele AUROC — is flat at **+0.013 (p 0.89)**, and European frequency controlling for global frequency gives +0.106 (p 0.24). What does hold is a *region-balanced* frequency effect in the opposite direction to the Europe-bias prediction: commoner alleles are predicted slightly worse, **−0.243 (p 0.007)**. Note the measure means each of the seven regions counts equally regardless of how many populations AFND holds for it — deliberate, since sample-weighting would let European oversampling define "global", but it is region-balanced rather than global and is named so. The population-weighted alternative gives −0.186 (p 0.039), the two correlating at +0.878 | validation split, v3 model, 123 alleles | `results/afnd_direct_tests.csv`, `afnd_frequency_per_allele.csv` | verified 30 Aug |
 | 19 | The seven per-region correlations are **one collinear signal, not seven findings**: median pairwise Spearman between regional frequencies is **+0.590** (range +0.090 to +0.878). At Bonferroni alpha 0.0071 only South & Central Asia (p 0.0007) survives; Europe (−0.127, p 0.161) does not | as above | `results/afnd_direct_tests.csv` | verified 30 Aug |
 | 20 | **Three independently developed predictors all degrade with motif isolation**, all on the same 123 alleles and the same peptides: MHCflurry **−0.393** (p<0.0001), NetMHCpan-4.1 **−0.248** (p 0.006), ours **−0.196** (p 0.030). Two were developed by other groups on their own training corpora, so the agreement is not a property of one implementation. For MHCflurry, where training overlap is checkable, the effect is not exposure: isolation and overlap correlate at only −0.113 (p 0.21) and partialling overlap moves isolation to −0.381 | 200 balanced pairs per allele from the validation split | `results/external_vs_isolation_matched.csv`, `sequence_val123.csv`, `mhcflurry_val123.csv`, `netmhcpan_val123.csv`, `fold_sets/validation_sample_123.csv` | verified 30 Aug, **matched 31 Aug** |
 | 20b | Our model's own isolation correlation is **−0.291 on the full validation split** and **−0.196 on the 200-pairs-per-allele sample** — same alleles, fewer peptides each, so a noisier per-allele AUROC and an attenuated correlation. The matched figure is the one to present in any three-model table; the full-split figure is the better-powered estimate of our model alone. They must not appear together without this explanation | validation split, v3 model | `results/per_allele_auroc_v3.csv`, `external_vs_isolation_matched.csv` | verified 31 Aug |
@@ -114,6 +113,9 @@ stale value, which would have reintroduced a retraction.
 | 26 | **Allele-specific expression does not predict per-allele performance.** Within-locus expression against AUROC gives +0.057 (p 0.63), and is null within every locus separately (HLA-A +0.098 n=25, HLA-B −0.001 n=31, HLA-C −0.090 n=18). Motif isolation is unaffected by controlling for it (−0.372 → −0.379) | 74 alleles matched from D'Antonio et al. 2019 | `results/expression_vs_performance.csv` | verified 30 Aug |
 | 27 | **The isolation effect is not the cross-allele crossover artefact.** 92.2% of the sample's unique peptides also appear in training under some other allele, so peptide promiscuity was tested as a competing explanation. Isolation and promiscuity are independent (−0.018, p 0.84) and isolation survives controlling for it in all three models, strengthening in two: ours −0.196 → −0.229, MHCflurry −0.393 → −0.393, NetMHCpan −0.248 → −0.265. Filtering to unseen peptides was rejected as the control — it leaves 8.7% of validation 9mers, 53 alleles at 15 pairs per class (SE ≈ 0.13 against 0.050), and removes negatives preferentially because they are promiscuous by construction | 200 pairs per allele | `results/crossover_stratified.csv` | verified 31 Aug |
 | 28 | **Peptide promiscuity predicts per-allele performance for our model and NetMHCpan but not MHCflurry** — ours −0.455 (p<0.0001), NetMHCpan −0.295 (p 0.0009), MHCflurry +0.055 (ns). MHCflurry's presentation predictor was trained on a different negative construction, so if the effect were biological it should appear there too. That it does not identifies this as a property of **this benchmark's construction** rather than of presentation: peptides shared across many repertoires appear as negatives for every other allele, so the labels are contradictory across alleles | 200 pairs per allele | `results/crossover_stratified.csv` | verified 31 Aug, promoted from Unconfirmed |
+| 29 | **AF3 replicates across panels**: 0.735 raw and **0.855 z-scored** on fold set v2 against 0.858 on v4, making it the best structural architecture on both. The raw-to-z gap is +0.120 here against +0.089 on v4 | fold set v2, 144 complexes | `pae_af3_v2.csv`, `pae_af3_v2_z.csv`, `auroc_af3_v2.csv`, `conf_af3_v2.csv` | verified 3 Sep |
+| 30 | **The consensus gain does not replicate; the variance-reduction diagnosis does.** PC1 alone matches the four-way mean to within 0.003 on both panels (0.9033 vs 0.9047 on v4; 0.8623 vs 0.8632 on v2), PC1 explaining 61.3% and 59.7%. But the gain over the best single architecture is +0.046 [+0.003, +0.091] on v4 and +0.005 [−0.040, +0.052] on v2, positive in 7 of 9 alleles against 1 of 6. The best subset also differs between panels (AF3+AF2+ESMFold2 at 0.923; AF3+AF2+Boltz at 0.878) | v2 and v4 | `results/consensus_diagnosis_v2.csv`, `consensus_diagnosis_v4.csv`, and their `_per_allele` and `_subsets` tables | verified 3 Sep |
+| 31 | **The 123-allele panel is representative of real repertoires, on the mass it covers.** Across 804 population × locus records from 335 AFND populations, median coverage is 97% (HLA-A), 92% (HLA-B), 99% (HLA-C); frequency-weighted expected AUROC **0.9687** against **0.9667** unweighted, a gap of +0.002. Coverage does not predict performance except through locus (pooled −0.362, but +0.059 / −0.093 / **+0.241** within HLA-A/B/C — the HLA-C direction being the reassuring one). HLA-C is weakest throughout: median 0.951 against 0.974 for HLA-B. **Caveat: the uncovered 3–8% is uncovered because those alleles lack held-out 9mers — the same scarcity the equity argument concerns — so this shows representativeness across the *evaluable* repertoire, not the real one. 84 of 804 records fall below 80% coverage, 61 of them HLA-B** | AFND, 123-allele panel | `scripts/afnd_population_coverage.py`, `results/afnd_population_coverage.csv` | verified 3 Sep |
 
 ---
 
@@ -266,37 +268,25 @@ Stratification retains all 123 alleles and tests the same concern. Recorded beca
 
 ---
 
-## AF3 on fold set v2 — image built, folding blocked
+## AF3 on fold set v2 — complete
 
-**Built 27 August** via the Sylabs remote builder from `patches/af3_remote.def`. Local
-copy at `~/af3build/alphafold3.sif` on the CS filesystem (3.7 GB), also in the Sylabs
-library, so it survives local disk problems.
+**Folded 3 September**, 144 complexes on `gadwall-l`, after CS support fixed the passwd
+lookup (`getent passwd 19298` returned nothing, so Singularity refused to start with
+"Couldn't determine user account information"). The image also needed its
+chemical-components database built into a bind-mounted directory, since `build_data`
+was omitted at build time to get under the Sylabs remote-builder timeout.
 
-Three build attempts. The first two were killed at `uv run build_data` — Sylabs' free
-tier reclaimed the agent for running too long. Removing that step succeeded: AF3 builds
-the components database on first run instead, so the first fold is slower and later ones
-are unaffected. The image is 3.7 GB rather than the 4.8 GB built locally in August for
-the same reason.
+**Image built 27 August** via the Sylabs remote builder from `patches/af3_remote.def`,
+after two attempts were killed at `uv run build_data` when the free tier reclaimed the
+agent for running too long. Local copy at `~/af3build/alphafold3.sif` (3.7 GB), also in
+the Sylabs library.
 
-**AF3 source commit `c0f97eda2f1f482fd94d3a38bece18c7069b4a5c`.** The v4 folds came from
-whatever `main` was on 5 August, probably a different commit — so any v2 result is a
-robustness check, not a like-for-like comparison, and needs saying if both appear in one
-table.
+**AF3 source commit `c0f97eda2f1f482fd94d3a38bece18c7069b4a5c`.** The v4 folds came
+from an earlier revision, so v2 is a robustness check rather than a like-for-like
+extension of the v4 table, and this must be stated wherever the two appear together.
 
-**Blocked on infrastructure, not on AF3.** Inputs are built and committed
-(`fold_sets/af3v2_inputs/`, 144 JSONs and 6 MSAs); parameters download from anywhere;
-folding is ~3 hours. What is missing is a machine that can run the container. Beta has a
-GPU and under 1 GB free with no path to the CS filesystem. The lab machines have 589 GB
-and free cards, but `getent passwd 19298` returns nothing on `gadwall-l`, `cackling-l`
-and `smew-l`, so Singularity refuses to start with "Couldn't determine user account
-information". Reported to CS support 28 Aug. Note the lab machines also reboot into
-Windows on Monday and Thursday evenings (TSG, 28 Aug).
-
-**This is a robustness check on a superseded panel.** Panel v4 is primary, all four
-architectures ran on it, and v2 predates AF3's availability. The consensus finding it
-would test has separately been shown to be variance reduction (row 22), so a v2
-replication would tell us whether variance reduction replicates rather than whether the
-architectures carry complementary information.
+Results in rows 29 and 30. Note that this is also the first arm where
+`pae_anchors_ic` is *not* the best feature — see the footnote to row 10.
 
 ---
 
