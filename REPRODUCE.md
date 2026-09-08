@@ -1665,3 +1665,268 @@ mechanism, the fold-quality features that were proxies for the classifier, and t
 peptide-count correlation.
 
 ---
+
+## 8 September — fold set v5, and what replication actually tested
+
+### Why a fifth fold set
+
+The negative-sampling artefact (12 August) was argued not to reach the fold sets on
+construction grounds: fold-set decoys are anchor-matched or affinity-measured, never
+drawn from the peptide pool that carried the artefact. That argument is sound and it
+is still the primary defence. But it is an argument, and the obvious response is to
+rebuild the benchmark from the corrected data and see whether the numbers hold.
+
+**The rebuild does not do what it was intended to do, and does something better.**
+Because only 10.3% of the old validation split survives regeneration, the candidate
+pools change substantially — HLA-B\*08:01 offers 958 canonical-binder candidates
+against v4's 4,884 — and the resulting fold set shares **8 of 216 complexes with v4,
+3.7%**. So v5 is not a corrected v4. It is a third independent benchmark drawn under
+the same rules, and agreement between the two is replication across an almost-disjoint
+sample rather than confirmation that an artefact has been removed. Disagreement, had
+there been any, would have confounded the negative-sampling fix with sampling
+variation and could not have been attributed to either.
+
+Record this wherever the two panels appear together. A reader who sees only "rebuilt
+on clean data" will read any difference as the size of the artefact.
+
+### Building it
+
+The nine alleles are pinned so that the data regeneration is the only deliberate
+change:
+
+```bash
+python scripts/select_fold_set_canonical.py \
+  --data data/processed/atlas_labelled_v2.csv \
+  --val-split data/processed/split_val_v2.csv \
+  --pseudoseq data/pseudoseq/hla_a.json data/pseudoseq/hla_b.json data/pseudoseq/hla_c.json \
+  --force-alleles 'HLA-A*29:02' 'HLA-B*08:01' 'HLA-B*15:03' 'HLA-B*15:18' \
+                  'HLA-B*37:01' 'HLA-B*39:06' 'HLA-B*47:01' 'HLA-B*73:01' 'HLA-C*08:01' \
+  --n-alleles 9 --k-peptides 12 --top-frac 0.10 \
+  --out fold_sets/binders_v5.csv
+
+python scripts/select_decoys_hard.py \
+  --data data/processed/atlas_labelled_v2.csv \
+  --val-split data/processed/split_val_v2.csv \
+  --targets 'HLA-A*29:02' 'HLA-B*08:01' 'HLA-B*15:03' 'HLA-B*15:18' \
+            'HLA-B*37:01' 'HLA-B*39:06' 'HLA-B*47:01' 'HLA-B*73:01' 'HLA-C*08:01' \
+  --k-decoys 12 --max-pctile 25 \
+  --out fold_sets/decoys_v5.csv
+
+cat fold_sets/binders_v5.csv fold_sets/decoys_v5.csv > fold_sets/fold_set_v5.csv
+```
+
+108 binders and 108 decoys. Note the two selection scripts take different arguments —
+the binder script wants `--pseudoseq` and `--force-alleles`, the decoy script wants
+`--targets` and neither of the other two. Reconstructing this from memory cost more
+time than the folding did.
+
+### ESMFold2
+
+Unchanged from previous runs.
+
+```bash
+conda activate esmfold2
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True nohup python -u \
+  scripts/fold_esmfold2.py --csv fold_sets/fold_set_v5.csv \
+  --sequences data/sequences --out esmfold2-v5 > /tmp/fold_v5.log 2>&1 &
+
+conda activate pmhcpresent
+python scripts/analyse_pae.py esmfold2-v5 \
+  --anchors data/processed/anchors.json --out pae_esmfold2_v5.csv
+```
+
+216 folded, 0 failed. `analyse_pae.py` takes the root positionally and has no
+`--fold-set` argument, unlike the AF2 and AF3 variants.
+
+**Result: 0.8006 within-allele standardised against v4's 0.8053**, raw 0.6725 against
+0.6590. Binder anchor-PAE below decoy for all nine alleles, gaps +0.232 to +2.127.
+
+### AlphaFold 2 via HISTOFold
+
+The prediction list needs converting to HISTOFold's three-column format; our
+five-column tagged format is not read directly.
+
+```bash
+python -c "
+import csv
+rows = [r for r in csv.reader(open('fold_sets/fold_set_v5.csv')) if len(r) > 3]
+with open('third_party/HISTOFold/fold_set_v5.csv','w',newline='') as f:
+    w = csv.writer(f, lineterminator='\n')
+    w.writerow(['allele_slug','peptide_sequence','pdb_id'])
+    for r in rows:
+        w.writerow([r[2], r[3], 'NA'])
+"
+
+cd third_party/HISTOFold
+nohup python run_msa_predictions.py \
+  --prediction_filename fold_set_v5.csv --structure_set full --gpu_number 0 \
+  > /tmp/af2_v5.log 2>&1 &
+```
+
+`local.toml` needs no change; in particular do not set `OUTPUT_FOLDER`, for the reason
+recorded on 4 August. Output lands in `outputs/experiments/fold_set_v5_v3b/`.
+
+**One complex failed silently and the file-count check caught it.** HISTOFold's
+`os.system` handling logs a crashed fold as done, so the log reported 216 successes.
+Counting files per directory found one at 11 against 29 everywhere else:
+
+```bash
+for d in outputs/experiments/fold_set_v5_v3b/*/; do echo "$(ls "$d" | wc -l) $d"; done | sort -n | head -4
+```
+
+`NA__hla_b_08_01__vivnnkgem` had terminated during the second of five models — no
+`.done.txt`, no PAE JSON, and score files named `model_1`/`model_2` without the
+`rank_00N` prefix that a complete run produces. Refolding it alone succeeded (pLDDT
+96.2, ipTM 0.92 at rank 1), so the failure was transient rather than reproducible:
+
+```bash
+rm -rf outputs/experiments/fold_set_v5_v3b/NA__hla_b_08_01__vivnnkgem
+printf 'allele_slug,peptide_sequence,pdb_id\nhla_b_08_01,VIVNNKGEM,NA\n' > refold_one.csv
+nohup python run_msa_predictions.py --prediction_filename refold_one.csv \
+  --structure_set full --gpu_number 0 > /tmp/refold_one.log 2>&1 &
+mv outputs/experiments/refold_one_v3b/NA__hla_b_08_01__vivnnkgem \
+   outputs/experiments/fold_set_v5_v3b/
+```
+
+Note the refold writes to an experiment directory named after its CSV, so the result
+must be moved. Including it moved the AUROC from 0.8267 to 0.8271 — immaterial to the
+result, but the check is what made the difference knowable rather than assumed.
+
+**Result: 0.8271 standardised against v4's 0.8423**, raw 0.7137 against 0.6980.
+
+### AlphaFold 3
+
+Inputs built on Beta, folded on `gadwall-l`, since Beta cannot host the 3.7 GB
+container and the CS machines cannot build it (no subuid mappings for a rootless
+`singularity build`).
+
+```bash
+python scripts/build_af3_inputs.py \
+  --fold-set fold_sets/fold_set_v5.csv \
+  --msa third_party/HISTOFold/inputs/msa_templates/len9_v3b.a3m \
+  --sequences data/sequences \
+  --out-dir /tmp/af3v5/inputs --msa-dir /tmp/af3v5/msas
+```
+
+216 JSONs and 9 per-allele MSAs, committed to `fold_sets/af3v5_inputs/` because Beta's
+`/tmp` is tmpfs. Note `fold_sets/` is gitignored, so `git add -f` on the *files* is
+required — `git add -f` on the directory does not override the rule.
+
+On `gadwall-l`, the container needs its chemical-components database bind-mounted,
+because `build_data` was omitted at image build time to get under the Sylabs remote
+builder's timeout (27 August). The MSA bind must match the path baked into the JSONs,
+which is `/tmp/af3v5/msas` for this fold set and `/tmp/af3v2/msas` for the previous
+one:
+
+```bash
+CONV=/alphafold3_venv/lib/python3.12/site-packages/alphafold3/constants/converters
+singularity exec --nv \
+  --bind $PWD/ccdconv:$CONV \
+  --bind $PWD/repo/fold_sets/af3v5_inputs:/root/af_input \
+  --bind $PWD/out5:/root/af_output \
+  --bind $PWD/models:/root/models \
+  --bind $PWD/repo/fold_sets/af3v5_inputs/msas:/tmp/af3v5/msas \
+  alphafold3.sif \
+  /alphafold3_venv/bin/python3 /app/alphafold/run_alphafold.py \
+  --json_path=/root/af_input/<name>.json \
+  --model_dir=/root/models --output_dir=/root/af_output \
+  --flash_attention_implementation=xla --norun_data_pipeline
+```
+
+Inference took 51 s per complex on 8 September against 192 s on 3 September, on the
+same card — the difference is contention from other users, not configuration. All 216
+completed.
+
+Extraction needs the confidences and summary JSONs brought back to Beta, since the two
+machines share no filesystem: copy both files per complex into a flat directory, tar,
+scp via a machine that can reach both, then unpack into one directory per complex
+because `analyse_pae_af3.py` iterates directories and globs inside each.
+
+**Result: 0.8419 standardised against v4's 0.8575**, raw 0.6998 against 0.7282. Binder
+anchor-PAE below decoy for all nine alleles, though the margin varies by two orders of
+magnitude — +0.018 for B\*39:06 against +4.020 for B\*73:01.
+
+### Boltz-2.1
+
+**This arm had no method recorded anywhere.** `REPRODUCE.md` documented its results
+across eleven lines and its invocation in none of them, because the driver lived in a
+`uv` project in a Downloads directory on a different machine and was never committed.
+It is now at `third_party/boltz_prediction/`. Of the five architectures this was the
+only one that could not be reproduced from the repository, and the gap went unnoticed
+until a grep for the command came back empty.
+
+The driver calls `boltz_api`'s `run_structure_and_binding` with the same three-chain
+layout as the other arms and the model pinned to `boltz-2.1`. It reads a fold set in
+our own five-column format directly, deduplicates on allele sequence plus peptide, and
+skips complexes whose output directory exists, so it is restartable. The API key comes
+from an uncommitted `.env`.
+
+```bash
+# from the boltz project root
+uv run boltz_pmhc_class_i_v5.py     # input path edited for v5
+```
+
+**The v5 arm was not folded.** Running it fails with "Prediction succeeded but did not
+return an archive URL" — the fold completes server-side and the result cannot be
+retrieved. The cause is that UCL's $100 Boltz launch-credit grant expired on 9 August;
+the v4 arm ran on that grant in early August. Diagnosing it took some time because the
+client raises the same exception on the pinned version (0.43.0) and the current one
+(0.50.0), reports no HTTP status, and completed 39 predictions before stopping, none of
+which looks like an authentication failure.
+
+Two other things surfaced while trying. In 0.50.0 the client resolves its own output
+directory from the `name` argument and ignores the path the script computes, so the
+`output_dir` variable is used only for the skip check and outputs from every fold set
+land in one directory. And the client deduplicates on entity sequences rather than
+names, so a complex folded under any previous run is silently reused — 47 of the 216
+v5 complexes matched that way.
+
+Structural results from a metered cloud API are therefore reproducible only while the
+credit lasts, which is a different and weaker guarantee than a container image
+provides. Worth stating in the limitations rather than treating as an accident.
+
+### The fine-tuned AlphaFold arm is not in this replication
+
+`third_party/alphafold_finetune/datasets_alphafold_finetune` is a symlink into
+`/tmp/af3/motmaen/`, which is Beta's tmpfs and has cleared. The Motmaen alignment file
+`1k5n_alignments.tsv` is therefore absent, and `build_finetune_targets.py` cannot run
+without it. Restoring the dataset is a download rather than a difficulty, but it was
+judged not worth the time against four architectures already replicating.
+
+**This is the third thing lost to that directory** — the AF3 image and 4,128 RQ3 folds
+were the others. Anything on Beta that must survive belongs in `/home` or in git, and
+the fact that a symlink into tmpfs looked identical to a working path until the
+moment it was needed is the lesson worth carrying.
+
+### A display bug worth knowing about
+
+`analyse_pae_af2.py` printed "756 complexes from fold_sets/fold_set_v5.csv" for a
+216-row file. The fold-set loader builds four name-variant keys per row to cover the
+naming schemes HISTOFold has produced, and three of them are distinct for `hard` rows:
+108 × 4 + 108 × 3 = 756. The diagnostic reported the key count. Labels were correct
+throughout — the 108/108 balance and the nine correct binder/decoy directions confirm
+it — but the line now reports both figures.
+
+### Where this leaves the comparison
+
+| arm | v4 | v5 | difference |
+|---|---|---|---|
+| AlphaFold 3 | 0.8575 | 0.8419 | −0.016 |
+| AlphaFold 2 | 0.8423 | 0.8271 | −0.015 |
+| ESMFold2 | 0.8053 | 0.8006 | −0.005 |
+
+Within-allele standardised `pae_anchors_ic`, the feature of 6 August. The ordering
+between the three arms is preserved exactly, every difference sits inside the paired
+intervals of the RQ1 comparison, and `pae_anchors_ic` is the best feature on all three
+— making it nine of ten measurements across panels and architectures, with AF3 on fold
+set v2 still the only exception.
+
+**All three differences are negative**, which is worth a sentence rather than being
+presented as noise. Three coin flips landing the same way is unremarkable; three
+differences of similar sign and magnitude suggest a small systematic difference between
+the panels. The likely mechanism is pool size: regeneration leaves far fewer canonical
+binder candidates per allele (958 for B\*08:01 against v4's 4,884), so the top decile
+is drawn from a smaller set and its members are less extreme against the allele's
+motif. v5 is a slightly harder benchmark, by roughly 0.015 for the two AlphaFold arms.
+That does not affect the replication — the point is that the ordering and the magnitudes
+survive — but it should be stated rather than left for a reader to notice.
