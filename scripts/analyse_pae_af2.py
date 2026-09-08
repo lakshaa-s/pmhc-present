@@ -133,7 +133,8 @@ def main() -> None:
     args = ap.parse_args()
 
     fold_set = load_fold_set(args.fold_set)
-    print(f"fold set: {len(fold_set)} complexes from {args.fold_set}")
+    print(f"fold set: {len(set(fold_set.values()))} complexes from "
+          f"{args.fold_set} ({len(fold_set)} name variants)")
 
     anchor_table = {}
     if args.anchors and Path(args.anchors).exists():
