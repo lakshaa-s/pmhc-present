@@ -1,0 +1,10 @@
+[project]
+name = "prediction-code"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "boltz-api>=0.43.0",
+    "dotenv>=0.9.9",
+]
