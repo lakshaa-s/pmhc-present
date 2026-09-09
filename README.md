@@ -148,6 +148,14 @@ but score low against its overall motif, so they cannot be rejected on anchors a
 Against motif-mismatched decoys ESMFold2 scores 0.911; against these, 0.700 — about
 two-thirds of the apparent structural signal was anchor recognition.
 
+**Fold set v5** rebuilds this panel from the regenerated training data — the same nine
+alleles pinned with `--force-alleles`, the same construction — and shares 8 of its 216
+complexes with v4 (3.7%), because only 10.3% of the old validation split survives
+regeneration. It is a replication cohort rather than a corrected v4. It carries four
+structural arms (AlphaFold 3, AlphaFold 2, ESMFold2, Boltz-2.1) and no sequence-model
+scoring, so it replicates the structural half of the RQ1 comparison rather than the
+whole of it. See REPRODUCE.md, 8 September.
+
 ### 5. Fold, extract features, score
 
 ```bash
@@ -176,6 +184,9 @@ feature table; then AUROCs.
 **Runtimes, per complex on an RTX 4090.** ESMFold2 ~18 s; AF2 via HISTOFold ~22 s
 (~90 s with representations saved); AlphaFold 3 ~72 s; fine-tuned AF2 ~4 s after a 40 s
 compilation. So fold set v4's 216 complexes take roughly 1 h on ESMFold2 and 4 h on AF3.
+These figures assume an uncontended card: AlphaFold 3 ran at 51 s per complex on a
+shared RTX 3090 Ti in September against 192 s on the same card a week earlier, which
+is contention rather than configuration and is worth checking before planning a batch.
 Boltz-2.1 runs through the cloud API at about $0.05 per complex.
 
 **Disk.** ESMFold2 writes ~0.8 MB per complex, AF2 via HISTOFold ~8.5 MB, AF3 ~9 MB. A

@@ -1866,24 +1866,54 @@ from an uncommitted `.env`.
 uv run boltz_pmhc_class_i_v5.py     # input path edited for v5
 ```
 
-**The v5 arm was not folded.** Running it fails with "Prediction succeeded but did not
-return an archive URL" — the fold completes server-side and the result cannot be
-retrieved. The cause is that UCL's $100 Boltz launch-credit grant expired on 9 August;
-the v4 arm ran on that grant in early August. Diagnosing it took some time because the
-client raises the same exception on the pinned version (0.43.0) and the current one
-(0.50.0), reports no HTTP status, and completed 39 predictions before stopping, none of
-which looks like an authentication failure.
+**The v5 arm failed first, then ran.** The initial attempt returned "Prediction
+succeeded but did not return an archive URL" for every complex: the fold completes
+server-side and the result is withheld. The cause was that UCL's $100 Boltz
+launch-credit grant expired on 9 August, and the v4 arm had run on that grant in early
+August. Diagnosing it took a while because the client raises the same exception on the
+pinned version (0.43.0) and the current one (0.50.0), reports no HTTP status, and
+completed 39 predictions before stopping — none of which looks like an authentication or
+quota failure.
 
-Two other things surfaced while trying. In 0.50.0 the client resolves its own output
-directory from the `name` argument and ignores the path the script computes, so the
-`output_dir` variable is used only for the skip check and outputs from every fold set
-land in one directory. And the client deduplicates on entity sequences rather than
-names, so a complex folded under any previous run is silently reused — 47 of the 216
-v5 complexes matched that way.
+With a new key the arm ran to completion, after two further obstacles. The key must be
+written to `.env` without surrounding punctuation; a placeholder's angle brackets are
+read as part of the value and produce a clean 401. And 45 local run directories held
+`run.json` files whose run IDs belonged to the previous workspace, which the new key
+rejects with `workspace_id does not match` — the client tries to reuse a recorded run
+before submitting a new one, so those directories must be deleted and the complexes
+refolded.
 
-Structural results from a metered cloud API are therefore reproducible only while the
-credit lasts, which is a different and weaker guarantee than a container image
-provides. Worth stating in the limitations rather than treating as an accident.
+```bash
+python3 -c "
+import csv, os, shutil, json
+rows=[r for r in csv.reader(open('complexes/hla_class_i_v5.csv')) if len(r)>3]
+for r in rows:
+    d=f'boltz-experiments/{r[0]}__{r[2]}__{r[3]}'
+    rj=f'{d}/run.json'
+    if os.path.exists(rj) and json.load(open(rj)).get('created_at','') < '<new key issued>':
+        shutil.rmtree(d)
+"
+nohup uv run boltz_pmhc_class_i_v5.py > /tmp/boltz_v5.log 2>&1 &
+```
+
+Two client behaviours are worth recording. In 0.50.0 the output directory is resolved
+from the `name` argument and the path the caller computes is ignored, so outputs from
+every fold set land together and must be separated afterwards by name. And the client
+deduplicates on entity sequences rather than names, silently reusing any complex folded
+under a previous run.
+
+Extraction needs the repository's `scripts/analyse_pae.py` rather than the copy in the
+Boltz project, which predates the IC-derived anchors and writes no `pae_anchors_ic`
+column; passing `--anchors` is what adds it. Extracted on the older script the arm reads
+0.6692, on the current one 0.7093.
+
+**Result: 0.7093 standardised against v4's 0.7447**, raw 0.6146 against 0.6462. This is
+not reported as a replication. The client changed between the runs and the served weights
+cannot be verified to have stayed fixed, so the 0.035 drop is consistent both with
+ordinary between-sample variation — Boltz has the smallest binder-decoy gaps of any arm,
++0.014 to +0.510 — and with a change in the model. The two cannot be separated after the
+fact, which is the point: an arm whose weights live behind a vendor's endpoint has no
+version to pin.
 
 ### The fine-tuned AlphaFold arm is not in this replication
 
@@ -1891,7 +1921,8 @@ provides. Worth stating in the limitations rather than treating as an accident.
 `/tmp/af3/motmaen/`, which is Beta's tmpfs and has cleared. The Motmaen alignment file
 `1k5n_alignments.tsv` is therefore absent, and `build_finetune_targets.py` cannot run
 without it. Restoring the dataset is a download rather than a difficulty, but it was
-judged not worth the time against four architectures already replicating.
+judged not worth the time against three architectures already replicating under
+held conditions.
 
 **This is the third thing lost to that directory** — the AF3 image and 4,128 RQ3 folds
 were the others. Anything on Beta that must survive belongs in `/home` or in git, and
@@ -1914,6 +1945,11 @@ it — but the line now reports both figures.
 | AlphaFold 3 | 0.8575 | 0.8419 | −0.016 |
 | AlphaFold 2 | 0.8423 | 0.8271 | −0.015 |
 | ESMFold2 | 0.8053 | 0.8006 | −0.005 |
+| Boltz-2.1 | 0.7447 | 0.7093 | −0.035 † |
+
+† Not a like-for-like comparison: the client was upgraded between the runs and the
+served weights cannot be verified as unchanged. The Boltz row should not be used to
+argue the paragraph below.
 
 Within-allele standardised `pae_anchors_ic`, the feature of 6 August. The ordering
 between the three arms is preserved exactly, every difference sits inside the paired
