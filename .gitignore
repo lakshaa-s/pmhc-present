@@ -18,6 +18,8 @@ tracerx*/
 *.h5
 *.hdf5
 !tests/**/*.csv          # tiny fixtures used by unit tests are allowed
+!results/motif_geometry_partials.csv
+!results/motif_geometry_per_allele.csv
 
 # Structure outputs (size, not governance — but keep them out)
 *.pdb
