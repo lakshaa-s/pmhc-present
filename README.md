@@ -361,3 +361,12 @@ distributed. No AF3-derived model leaves this repository.
 
 NetMHCpan-4.1 is used through a colleague's licensed
 installation; this project is not licensed independently.
+
+---
+
+## License
+
+The original code in this repository (`src/`, `scripts/`, tests) is MIT-licensed
+— see [LICENSE.md](LICENSE.md). Vendored third-party code, data, and AlphaFold 3
+outputs carry their own separate terms; see the license's scope note and "Data
+governance" above.
