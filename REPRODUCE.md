@@ -1591,9 +1591,18 @@ record of what was computed, not as a claim:
 
 **Exactly one of the 123 training alleles has B\*08:01's configuration.** An earlier
 version of this analysis used Asp9 alone as the marker and found five carriers; the
-four HLA-C\*07 alleles share Asp9/Asp74 but carry Arg or Arg/Trp at 69 and 97, so the
-positive charge sits where B\*08:01 has the hydrogen-bond donor and the P5 arginine
-cannot be accommodated.
+four HLA-C\*07/C\*06:02 alleles share Asp9/Asp74 but were excluded on the strength of
+positions 69/97, at a time when 69 was still (wrongly) believed to be a contact.
+
+*Closed 12 Sep, on the measured contacts.* All four HLA-C alleles fail at position 97,
+not 69: they carry Arg (C\*07:01/02/04) or Trp (C\*06:02) where B\*08:01 has the Ser97
+that donates the fourth hydrogen bond to the lysine ammonium (`results/p5_contacts_4qrt.csv`).
+Their P5 information content is correspondingly low, 0.25–0.61 bits against B\*08:01's
+1.93 (`results/p5_configuration_123.csv`). Sharing two of three contacts is not enough:
+Asp9 and Asp74 alone supply two salt bridges, but without Ser97's hydrogen bond the
+lysine is underconstrained and the anchor does not register. This is the general pattern
+confirmed across all 123 alleles below — losing any one of the three contacts, not
+just this one, is sufficient to lose the anchor.
 
 Asp9 is present in the model's input — it is the second residue of the 34-mer
 pseudosequence — so the sequence model is not blind to it. What it lacks is examples:
