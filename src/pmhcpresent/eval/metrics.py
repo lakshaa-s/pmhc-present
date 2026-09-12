@@ -5,6 +5,8 @@ import numpy as np
 
 
 def auroc(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    """Args: binary labels, predicted scores (any monotonic scale). Returns:
+    ROC-AUC, or NaN if `y_true` has only one class (metric is undefined there)."""
     from sklearn.metrics import roc_auc_score
 
     y_true = np.asarray(y_true)
@@ -14,6 +16,8 @@ def auroc(y_true: np.ndarray, y_score: np.ndarray) -> float:
 
 
 def average_precision(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    """Same inputs as `auroc`. Returns: average precision (area under PR curve),
+    or NaN if `y_true` has only one class."""
     from sklearn.metrics import average_precision_score
 
     y_true = np.asarray(y_true)
@@ -32,6 +36,8 @@ def ppv_at_k(y_true: np.ndarray, y_score: np.ndarray, k: int) -> float:
 
 
 def summary(y_true: np.ndarray, y_score: np.ndarray, top_k: int = 100) -> dict:
+    """Args: binary labels, predicted scores, `top_k` for the PPV cutoff.
+    Returns: dict with n, n_pos, auroc, ap, and ppv@top_k."""
     return {
         "n": len(y_true),
         "n_pos": int(np.sum(y_true)),

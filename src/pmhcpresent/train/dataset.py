@@ -17,6 +17,8 @@ from pmhcpresent.io.pseudoseq import PseudoSequenceMap
 
 
 class PeptideMHCDataset(Dataset):
+    """Encoded (peptide, pseudosequence, label) triples for `PresentationNet`."""
+
     def __init__(
         self,
         peptides: list[str],
@@ -28,6 +30,10 @@ class PeptideMHCDataset(Dataset):
         alleles: list[str] | None = None,
         strata=None,
     ):
+        """Args: parallel lists — `peptides` (raw sequences), `pseudoseqs` (34-mer
+        pocket sequences, already resolved per row, not allele names), `labels`
+        (0/1). `alleles`/`strata` are optional per-row metadata carried alongside
+        for `evaluate` to group by, and are not passed to the model."""
         if not (len(peptides) == len(pseudoseqs) == len(labels)):
             raise ValueError("peptides, pseudoseqs, labels must be the same length")
 
@@ -44,6 +50,9 @@ class PeptideMHCDataset(Dataset):
         return len(self.labels)
 
     def __getitem__(self, i: int):
+        """Returns the (peptide, mhc, label) tensor triple the model trains on —
+        row-level allele/stratum metadata is not included; read it from
+        `self.alleles[i]` / `self.strata[i]` instead."""
         return self.pep[i], self.mhc[i], self.y[i]
 
     @classmethod

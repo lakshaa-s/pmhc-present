@@ -40,6 +40,7 @@ class NetMHCpanRecord:
 
     @property
     def is_binder(self) -> bool:
+        """True if NetMHCpan flagged this row strong- or weak-binding (SB/WB)."""
         return self.bind_level in _BIND_TOKENS
 
 
@@ -131,6 +132,7 @@ def _as_float(value) -> float | None:
 
 
 def parse_netmhcpan_file(path: str | Path) -> list[NetMHCpanRecord]:
+    """Read `path` (raw NetMHCpan-4.1 stdout) and parse it; see `parse_netmhcpan_text`."""
     return parse_netmhcpan_text(Path(path).read_text())
 
 

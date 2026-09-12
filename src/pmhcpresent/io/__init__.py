@@ -1,3 +1,4 @@
+"""Parsers and encoders for peptides, HLA pseudosequences, and NetMHCpan output."""
 from pmhcpresent.io.netmhcpan import (
     NetMHCpanRecord,
     parse_netmhcpan_file,

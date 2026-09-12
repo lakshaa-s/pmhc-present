@@ -53,12 +53,16 @@ class PseudoSequenceMap:
     """Allele → 34-residue pseudosequence, with name normalisation on lookup."""
 
     def __init__(self, mapping: dict[str, str]):
+        """Args: `mapping`, raw allele name -> pseudosequence, in whatever naming
+        convention the source file used (normalised internally on lookup)."""
         self._raw = dict(mapping)
         self._norm = {normalize_allele(k): v for k, v in mapping.items()}
         lengths = {len(v) for v in mapping.values()}
         self.pseudoseq_len = next(iter(lengths)) if len(lengths) == 1 else None
 
     def get(self, allele: str) -> str | None:
+        """Args: `allele`, any naming convention `normalize_allele` accepts.
+        Returns: the pseudosequence, or None if the allele is absent."""
         return self._norm.get(normalize_allele(allele)) or self._raw.get(allele)
 
     def __contains__(self, allele: str) -> bool:

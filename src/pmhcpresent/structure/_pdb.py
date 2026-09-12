@@ -19,6 +19,8 @@ import numpy as np
 
 @dataclass
 class Residue:
+    """One residue's heavy atoms, as parsed from ATOM records."""
+
     chain: str
     resseq: int
     resname: str
@@ -28,9 +30,11 @@ class Residue:
 
     @property
     def mean_bfactor(self) -> float:
+        """Per-residue mean of the B-factor column (AlphaFold: mean atom pLDDT)."""
         return float(self.bfactors.mean())
 
     def ca(self) -> np.ndarray | None:
+        """Returns the alpha-carbon coordinate (x, y, z), or None if absent."""
         if "CA" in self.atom_names:
             return self.coords[self.atom_names.index("CA")]
         return None
@@ -78,6 +82,7 @@ def parse_pdb(path: str | Path) -> list[Residue]:
 
 
 def chains(residues: list[Residue]) -> dict[str, list[Residue]]:
+    """Group a flat residue list (as returned by `parse_pdb`) by chain ID."""
     out: dict[str, list[Residue]] = {}
     for r in residues:
         out.setdefault(r.chain, []).append(r)

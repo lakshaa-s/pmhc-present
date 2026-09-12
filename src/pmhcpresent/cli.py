@@ -141,6 +141,7 @@ def _cmd_train(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Assemble the `pmhcpresent` argparse CLI (see module docstring for subcommands)."""
     p = argparse.ArgumentParser(prog="pmhcpresent", description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
 
@@ -190,6 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point for `python -m pmhcpresent` / the `pmhcpresent` console script."""
     args = build_parser().parse_args(argv)
     return args.func(args)
 

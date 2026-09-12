@@ -33,6 +33,9 @@ from pmhcpresent.io.peptides import PAD_IDX, VOCAB_SIZE
 
 @dataclass
 class NetConfig:
+    """Architecture hyperparameters for `PresentationNet`. No ablation flags —
+    those live in `scripts/ablation_*.py`, which build separate configs."""
+
     vocab_size: int = VOCAB_SIZE
     pad_idx: int = PAD_IDX
     max_pep_len: int = 15
@@ -61,7 +64,8 @@ class _SeqEncoder(nn.Module):
         self.act = nn.ReLU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, L) int indices
+        """Args: x, integer residue indices, shape (batch, length).
+        Returns: pooled feature vector, shape (batch, conv_channels)."""
         h = self.embed(x)                 # (B, L, E)
         h = h.transpose(1, 2)             # (B, E, L)
         h = self.act(self.conv(h))        # (B, C, L)
@@ -87,6 +91,9 @@ class PresentationNet(nn.Module):
         )
 
     def forward(self, peptide: torch.Tensor, mhc: torch.Tensor) -> torch.Tensor:
+        """Args: peptide indices (batch, max_pep_len), mhc pseudoseq indices
+        (batch, pseudoseq_len). Returns: raw presentation logit, shape (batch,)
+        — apply sigmoid for a probability, or use `predict_proba` below."""
         p = self.pep_enc(peptide)         # (B, C)
         m = self.mhc_enc(mhc)             # (B, C)
         feats = torch.cat([p, m], dim=-1)
@@ -94,8 +101,10 @@ class PresentationNet(nn.Module):
 
     @torch.no_grad()
     def predict_proba(self, peptide: torch.Tensor, mhc: torch.Tensor) -> torch.Tensor:
+        """Same inputs as `forward`. Returns: presentation probability in [0, 1]."""
         return torch.sigmoid(self(peptide, mhc))
 
 
 def count_parameters(model: nn.Module) -> int:
+    """Total trainable parameters in `model` (used to report the 30,465 figure)."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)

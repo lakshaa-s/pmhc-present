@@ -140,6 +140,14 @@ def hamming_cluster(peptides, alleles=None, identity_threshold=0.8):
     allele, keeping comparisons cheap. Cluster ids are offset per allele so none
     collide. Stricter than exact_dedup_cluster (catches 1-2 residue near-dups);
     use for the final leakage-controlled split.
+
+    IMPORTANT: cluster ids depend on the exact set of rows passed in, not just the
+    seed. Call this once on the full labelled table (as `scripts/make_split.py`
+    does) and have every consumer read the resulting split file — never re-cluster
+    a filtered subset (e.g. positives only, or one peptide length only) expecting
+    the same split. A filtered subset clusters differently, changing which rows
+    land in train vs. val even with identical inputs otherwise. This has previously
+    put ~80% of an intended held-out fold set back into train; see PROGRESS.md.
     """
     peptides = list(peptides)
     n = len(peptides)

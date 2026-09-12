@@ -32,6 +32,9 @@ REFOLD_REQUIRED = {
 
 @dataclass
 class StructureFeatures:
+    """Feature dict for one folded complex, plus provenance in `meta`
+    (source PDB path, chain IDs, whether ipSAE was computed)."""
+
     features: dict = field(default_factory=dict)
     meta: dict = field(default_factory=dict)
 
@@ -40,6 +43,7 @@ class StructureFeatures:
         return {k: v for k, v in self.features.items() if REFOLD_REQUIRED.get(k) is False}
 
     def refold_subset(self) -> dict:
+        """The complementary set: features that require a fresh fold per mutant."""
         return {k: v for k, v in self.features.items() if REFOLD_REQUIRED.get(k) is True}
 
 

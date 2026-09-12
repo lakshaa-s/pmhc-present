@@ -28,11 +28,14 @@ class EnsembleStacker:
         self.feature_names_: list[str] | None = None
 
     def fit(self, seq_scores: np.ndarray, struct_feats: np.ndarray, y: np.ndarray):
+        """Args: `seq_scores` (n,), `struct_feats` (n,) or (n, k), `y` (n,) binary
+        labels. Returns self, fitted."""
         X = self._stack(seq_scores, struct_feats)
         self.model.fit(X, y)
         return self
 
     def predict_proba(self, seq_scores: np.ndarray, struct_feats: np.ndarray) -> np.ndarray:
+        """Same shapes as `fit` (no labels). Returns: P(presented), shape (n,)."""
         X = self._stack(seq_scores, struct_feats)
         return self.model.predict_proba(X)[:, 1]
 

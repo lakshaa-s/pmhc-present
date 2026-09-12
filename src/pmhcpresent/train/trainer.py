@@ -25,6 +25,9 @@ from pmhcpresent.eval.stratified import stratified_metrics
 
 @dataclass
 class TrainConfig:
+    """Optimisation settings for `train_model`/`evaluate` — not architecture
+    hyperparameters, which live in `NetConfig` (`models/nn.py`)."""
+
     epochs: int = 50
     batch_size: int = 256
     lr: float = 1e-3
@@ -36,6 +39,8 @@ class TrainConfig:
 
 
 def select_device(prefer: str | None = None) -> torch.device:
+    """Args: `prefer`, an explicit torch device string, or None to auto-select
+    CUDA → MPS → CPU in that order. Returns: the resolved `torch.device`."""
     if prefer:
         return torch.device(prefer)
     if torch.cuda.is_available():
