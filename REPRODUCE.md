@@ -1569,10 +1569,13 @@ Following the RQ3 finding that ESMFold2 ranks P5 first for HLA-B\*08:01 where th
 sequence model ranks P9 and P2, Chris Thorpe supplied the structural explanation and
 it turned out to be more specific than first assumed.
 
-**P5 Arg chelation requires a four-residue configuration** — Asp9 and Asp74 provide
-the charge, Ser97 hydrogen bonds to Asp9 without neutralising it, and Thr69 sits one
-helical turn back from Asp74. Read from the NetMHCpan pseudosequences
-(`results/p5_anchor_residues.csv`):
+**P5 basic-residue chelation requires a configuration of pocket residues** — Asp9 and
+Asp74 provide the charge and Ser97 donates a hydrogen bond, all three to the peptide
+lysine/arginine side chain itself. Corrected 12 Sep by direct measurement: Ser97 bonds
+the peptide **NZ**, not Asp9, and Thr69 is not a contact at all (see *Measured contacts*
+below). The table as originally computed reads positions 9/69/74/97 from the NetMHCpan
+pseudosequences (`results/p5_anchor_residues.csv`); column 69 is retained here as a
+record of what was computed, not as a claim:
 
 | allele | 9 | 69 | 74 | 97 | P5 IC |
 |---|---|---|---|---|---|
@@ -1597,7 +1600,57 @@ pseudosequence — so the sequence model is not blind to it. What it lacks is ex
 a pan-allele model would have to learn a four-residue interaction from a single
 training allele. **That also gives a complete account of the Gfeller
 leave-one-allele-out failure for this allele**: remove B\*08:01 and no allele in the
-training set has the configuration.
+training set has the configuration. That failure is now also reported in print — Tadros
+et al. (Genome Med 2025;17:25) name B\*08:01 as a common allele with low binding-site
+similarity to other characterised alleles, and therefore low LOA AUC.
+
+#### Measured contacts (12 Sep)
+
+The configuration above was proposed from pseudosequence inspection. Measuring it
+directly in two crystal structures settles which residues are involved.
+`scripts/p5_contacts.py` reports the minimum heavy-atom distance from the P5 side chain
+to each candidate groove residue:
+
+```
+mkdir -p data/raw/pdb && cd data/raw/pdb
+curl -O https://files.rcsb.org/download/4QRT.pdb   # wild-type B*08:01 / ELNRKMIYM
+curl -O https://files.rcsb.org/download/8ESH.pdb   # B*08:01->A*02:01 chimera / CMV
+cd ../../..
+python scripts/p5_contacts.py data/raw/pdb/4QRT.pdb
+python scripts/p5_contacts.py data/raw/pdb/8ESH.pdb
+```
+
+| residue | 4QRT (wild type) | atoms | 8ESH (chimera) | atoms |
+|---|---|---|---|---|
+| **Asp9** | **2.78 Å** | NZ–OD2 | 3.28 Å | NZ–OD2 |
+| **Ser97** | **2.81 Å** | NZ–OG | 3.97 Å | NZ–CB |
+| **Asp74** | **2.86 Å** | NZ–OD2 | 3.57 Å | NZ–OD2 |
+| Tyr116 | 3.03 Å | CE–OH | 5.60 Å (Asn in chimera) | NZ–OD1 |
+| Asn70 | 3.49 Å | CB–OD1 | 3.24 Å | CG–OD1 |
+| Thr69 | **5.74 Å** | CB–O | **6.20 Å** | CB–O |
+
+Three conclusions, in order of consequence.
+
+**Thr69 is not a contact.** 5.74 Å and 6.20 Å, agreeing across both structures. It is
+removed from the configuration. It had already been withdrawn as a *predictor* on
+statistical grounds (see the Thr69 section below); the two routes agree.
+
+**Ser97 is a contact, and its partner is the peptide.** NZ–OG at 2.81 Å in the wild
+type is a textbook hydrogen bond to the lysine ammonium. The original claim that it
+bonds Asp9 was wrong; the residue was right.
+
+**Asn70 packs, it does not bond.** Its closest approach is carbon-to-oxygen in both
+structures — CB–OD1 and CG–OD1 — i.e. against the aliphatic chain rather than the
+charged head. Papadaki et al. (ref. 51) name Asp9, Asn70 and Asp74 because in *their*
+chimera Ser97's hydroxyl has rotated away (3.97 Å, and to CB) and position 116 is Asn
+rather than Tyr, leaving Asn70 as nearest polar neighbour. The engineered groove
+reproduces the anchor through a partly different contact set than the allele it copies,
+which is itself evidence that P5 anchoring is not the property of any one residue.
+
+Tyr116 at 3.03 Å in the wild type was in neither the proposed nor the published set,
+and is lost in the chimera, which carries Y116N.
+
+Artefacts: `results/p5_contacts_4qrt.csv`, `results/p5_contacts_8esh.csv`.
 
 At least three distinct configurations reach P5 anchoring — B\*08:01 (D/T/D/S),
 B\*37:01 (H/T/Y/R), B\*14:01–02 (Y/T/D/W) — which is Chris's superposition figure
@@ -1622,6 +1675,14 @@ would not have fit. `results/af2_b08_pae/` holds the extracted matrices; note 51
 **The prediction**, written before the run: B\*37:01 reaches P5 anchoring through
 His9/Thr69/Tyr74/Arg97, sharing only Thr69 with B\*08:01. If the structural model
 ranks P5 first or second, it is tracking geometry rather than a residue signature.
+
+*Annotation, 12 Sep:* the prediction is kept as written, but its premise has moved.
+Under the measured contacts, B\*37:01 shares **none** of B\*08:01's three polar contacts
+— it carries His at 9, Tyr at 74 and Arg at 97 — while sharing Asn70, which is a packing
+contact. The prediction was therefore built on a shared residue that turns out not to
+participate. This strengthens rather than weakens the negative result: the two alleles
+are further apart chemically than the prediction assumed, and the structural model still
+recovered only one of them.
 
 516 ESMFold2 folds, 3 seeds. **It does not.**
 
@@ -1663,6 +1724,12 @@ Not reported, and deliberately omitted from the correspondence with Chris. This 
 the fourth artefact of this kind caught in the project, after the withdrawn geometry
 mechanism, the fold-quality features that were proxies for the classifier, and the
 peptide-count correlation.
+
+*Closed 12 Sep.* Thr69 is 5.74 Å from the P5 side chain in wild-type B\*08:01 and
+6.20 Å in the chimera (`results/p5_contacts_4qrt.csv`), so it is not a contact and
+cannot be a mechanism. The statistical route caught a selection artefact; the geometric
+route shows there was nothing to select for. Two independent means, same conclusion —
+and worth noting that the statistical check came first and was correct.
 
 ---
 
