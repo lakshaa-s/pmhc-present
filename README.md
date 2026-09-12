@@ -1,8 +1,9 @@
-# pmhcpresent — HLA class I presentation prediction, with an equity lens
+# pmhcpresent — HLA class I presentation prediction across diverse alleles
 
 COMP0190 / AI4BH 2025–26. Predicts which peptides are presented by HLA class I, and
 asks whether structural methods help where sequence methods are weakest — that is,
-for the ancestrally diverse alleles that the training data underrepresents.
+on the ancestrally diverse alleles that training data underrepresents, which in turn
+underrepresents the populations in which those alleles are common.
 
 This README is the usage guide. For results, the reasoning behind design decisions,
 and the corrections to analyses that turned out wrong, see
@@ -262,8 +263,8 @@ Two findings independent of the research questions:
 rows), a studied HLA-A allele has roughly one experimentally determined non-binder per
 six positives; HLA-B and HLA-C have roughly one per 120. For HLA-C\*15:05 and
 HLA-C\*16:02 there are **zero**. Constructed decoys are a necessity rather than a
-convenience, and the equity question cannot currently be answered with experimentally
-grounded negatives by anyone.
+convenience, and no one — this project included — can currently answer the
+underrepresented-allele question with experimentally grounded negatives.
 
 **Anchor conventions are too rigid.** 43% of alleles have a high-information position
 outside the standard P2/PΩ scheme. Defining anchors per allele from information
@@ -348,10 +349,6 @@ is full, but copy anything you need to keep.
 ---
 
 ## Data governance
-
-TRACERx is **controlled-access** (Data Access Committee) and is used as an
-*illustrative application* only — never as a benchmark or evaluation cohort.
-**Nothing TRACERx-derived enters git**; see `.gitignore`.
 
 AlphaFold 3 output may not be used to train models intended for commercial
 application under its weights terms of use. AF3 features therefore appear in
