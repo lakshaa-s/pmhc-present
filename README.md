@@ -9,6 +9,15 @@ This README is the usage guide. For results, the reasoning behind design decisio
 and the corrections to analyses that turned out wrong, see
 **[REPRODUCE.md](REPRODUCE.md)**.
 
+- [Install](#install)
+- [Running the pipeline](#running-the-pipeline)
+- [Known issues](#known-issues)
+- [Results in brief](#results-in-brief)
+- [Script reference](#script-reference)
+- [Where things run](#where-things-run)
+- [Data governance](#data-governance)
+- [License](#license)
+
 ---
 
 ## Install
